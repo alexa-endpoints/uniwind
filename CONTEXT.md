@@ -68,6 +68,7 @@ Workspace dependency alignment: the examples share Expo SDK 57's React Native 0.
 Native runtime:
 
 - Build output injects a generated stylesheet callback into `Uniwind.__reinit(...)`.
+- Federated remote build output registers an owner-keyed style delta instead.
 - `UniwindStore` holds generated style records, theme variables, scoped variables, runtime state, and per-theme caches.
 - `UniwindStore.getStyles(className, props, state, context)` resolves classes into React Native style objects.
 - Cache keys include class names, component state, whether theme is scoped, layout direction, and a key derived from the merged `ScopedVariables` map.
@@ -81,7 +82,7 @@ Web runtime:
 
 - Web keeps styles in CSS and passes `{ $$css: true, tailwind: className }` through RNW style arrays.
 - `getWebStyles` uses a hidden DOM element to compute style values when a JS value is needed, such as color extraction or `useResolveClassNames`.
-- `CSSListener` tracks active CSS rules and media queries, then notifies subscribers when class-dependent media rules change. Candidate rules are cached by class string and invalidated when stylesheets are processed or media rules are toggled; computed values and selector matching remain live. After scanning newly discovered stylesheets, it emits a variables notification so JS-resolved styles refresh when CSS arrives after module initialization, including Metro web development startup. Deferred scans safely return if `document` has been removed before they run, such as during test environment teardown.
+- `CSSListener` tracks active CSS rules and media queries, then notifies subscribers when stylesheets load or unload or class-dependent media rules change. Candidate rules are cached by class string and invalidated when stylesheets are processed or media rules are toggled; computed values and selector matching remain live. After a scan that discovers new stylesheets or prunes removed ones, it emits one variables notification so JS-resolved styles refresh when CSS arrives after module initialization, including Metro web development startup. Deferred scans safely return if `document` has been removed before they run, such as during test environment teardown.
 - `ScopedTheme` renders a `div` with the theme class and `display: contents` on web.
 - `LayoutDirection` renders a contents-style wrapper with `direction`/`dir` semantics so RTL/LTR variants can be scoped to a subtree.
 - `ScopedVariables` renders a `display: contents` wrapper and sets its variables as inline custom properties on that wrapper, so the real DOM cascade resolves `var(--name)` to the scoped value for every descendant (numbers become px). During JS reads (`getWebVariable` / `useResolveClassNames`) it also applies the variables to the private hidden `dummyParent`. Each read compares variable values against the applied inline properties, including changes made in place to the same variables object. Unchanged values avoid writes; switching scopes removes stale properties and applies changed values.
@@ -104,6 +105,7 @@ Configuration shape:
 - `cssEntryFile`: required CSS entry path, resolved from `process.cwd()`.
 - `extraThemes`: optional named themes added to default `light` and `dark`.
 - `dtsFile`: optional generated declaration file path, default `uniwind-types.d.ts`.
+- Metro-only `federation`: optional native remote build contract with a stable owner ID.
 - Metro-only `polyfills.rem`: custom rem base, default `16`.
 - Metro-only `debug` and `isTV` flags exist in types.
 
@@ -121,15 +123,16 @@ Metro integration:
 
 - `withUniwindConfig(config, uniwindConfig)` patches Metro graph support for uncached modules.
 - Metro adds `css` as source extension and removes it from asset extensions.
-- Metro transformer handles the configured CSS entry file specially. In development, native entries declare imported local CSS files as Metro dependencies, including nested imports and workspace files resolved outside `node_modules`, so token-only edits trigger recompilation. Dependencies are collected afresh on each compile.
+- Metro transformer handles the configured CSS entry file specially. In development, native entries declare imported local CSS files as Metro dependencies, including nested imports and workspace files resolved outside `node_modules`, so token-only edits trigger recompilation. The generated `uniwind.css` is never one of them: the transform rewrites it, and the projects of a workspace share one copy, so concurrently running Metro servers that watched it would keep rebuilding each other. Dependencies are collected afresh on each compile.
 - Non-entry native CSS is an empty module in plain Metro; Expo keeps its own CSS handling. Web CSS handling is unchanged.
 - Metro transformer worker selection is lazy, cached per Expo/non-Expo config type, and follows Expo transformer paths or Expo-specific config markers.
-- Native platform CSS transforms into a JS module that calls `Uniwind.__reinit(...)` with a fingerprint of the generated styles and themes. During development, the native runtime skips reinitialization when that fingerprint is unchanged.
+- Host native platform CSS transforms into a JS module that calls `Uniwind.__reinit(...)` with a fingerprint of the generated styles and themes. During development, the native runtime skips reinitialization when that fingerprint is unchanged.
+- Federated remote native CSS transforms into an owner-keyed merge registration. In development it requires its imported stylesheets like a host entry, so a remote's token-only edit rebuilds its delta.
 - Web platform CSS transforms into CSS plus web runtime setup.
 - Resolver swaps React Native component imports to Uniwind-aware implementations where needed.
 - On native, `react-native` resolves to `src/components/index.ts`, which defines lazy getters for the Uniwind wrappers and forwards every other key of the real `react-native` module through lazy getters, so new React Native or out-of-tree platform exports pass through without a hand-written list.
 - On web, imports originating inside React Native Web keep their original components, preventing cycles through Uniwind wrappers. Animated component imports still receive wrappers, matching the native resolver, and the internal `createOrderedCSSStyleSheet` override remains active. Application and third-party component imports still resolve to styled wrappers.
-- `uniwind` and `uniwind/*` requests resolve from `<projectRoot>/package.json`, so every importer gets the app's copy. If the configured resolver returns a source file outside this package (e.g. Expo autolinking resolution picks a hoisted public `uniwind` while Pro is installed under an alias such as `"uniwind": "npm:uniwind-pro"`), the request is resolved again with Metro's default `metro-resolver`.
+- `uniwind` and `uniwind/*` requests resolve from `<projectRoot>/package.json`, so every importer gets the app's copy. If the configured resolver returns another copy of the `uniwind` package (a source file under `node_modules/uniwind/` outside this package, e.g. Expo autolinking resolution picks a hoisted public `uniwind` while Pro is installed under an alias such as `"uniwind": "npm:uniwind-pro"`), the request is resolved again with Metro's default `metro-resolver`. Other modules the configured resolver substitutes, such as Module Federation's proxy for a shared `uniwind`, are kept.
 
 Vite integration:
 
@@ -188,6 +191,14 @@ Web components:
 - Web wrappers map `className` to RNW CSS style markers through `toRNWClassName`.
 - Web wrappers pass generated `dataSet` so data attribute variants can match.
 - `InputAccessoryView` wraps React Native Web's export when available (0.21.3+) and uses `View` with older React Native Web versions, while supporting Uniwind classes and data attributes.
+
+## Federated Style Contract
+
+- The host owns the base/global CSS. Remotes emit only explicitly prefixed deltas.
+- Native deltas merge by owner; existing keys win, same-owner registration replaces, and non-federated `__reinit` behavior is unchanged.
+- Remote deltas compile through the same native pipeline as a host entry, so their rules carry the same generated `matches` predicates and cascade ranks and match exactly like host rules.
+- Native compile output also carries a cascade table: every cascade layer by parent and name, and the first rank of each run of rules sharing a layer and specificity. While remotes are registered, the store reranks the merged rules as if the host stylesheet were followed by each remote's in first-registration order: layers merge by name and keep the order they were first declared in, then rules compare by specificity, registration and their compiled rank, and important ranks stay above every normal rank. Without remotes, compiled ranks are used unchanged.
+- Remotes register on the host's `Uniwind` singleton, so `uniwind` is a Module Federation shared module and its requests keep the federation resolver's shared-module proxy.
 
 `withUniwind`:
 

@@ -26,10 +26,20 @@ export type Style = {
 
 export type StyleSheets = Record<string, Array<Style>>
 
+// How a compiled stylesheet ranked its rules, so separately compiled registrations can be ranked together.
+// `layers` lists every cascade layer in declaration order, parents first, as its parent's index (-1 at the top)
+// and its name (null when anonymous). `buckets` lists, in rank order, each run of rules sharing a layer (-1 when
+// unlayered) and specificity, with the normal rank of its first rule.
+export type CascadeTable = {
+    layers: Array<[parent: number, name: string | null]>
+    buckets: Array<[layer: number, specificity: number, start: number]>
+}
+
 export type GenerateStyleSheetsCallback = (rt: UniwindRuntime) => {
     stylesheet: StyleSheets
     vars: Vars
     scopedVars: Partial<Record<string, Vars>>
+    cascade?: CascadeTable
 }
 
 export interface UniwindConfig {}
