@@ -1,5 +1,6 @@
-import { waitFor } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
+import { Uniwind, useCSSVariable } from '../../../src'
 import { CSSListener } from '../../../src/core/web'
 
 afterEach(() => {
@@ -157,6 +158,34 @@ describe('CSSListener', () => {
                 configurable: true,
                 value: originalMatchMedia,
             })
+        }
+    })
+
+    test('updates public CSS variable APIs as a remote stylesheet loads and unloads', async () => {
+        const variableName = '--rma-color-mf-shared'
+        const style = document.createElement('style')
+        const { result } = renderHook(() => useCSSVariable(variableName))
+
+        expect(Uniwind.getCSSVariable(variableName)).toBe('')
+        expect(result.current).toBe('')
+
+        try {
+            style.textContent = `.light, .light * { ${variableName}: #facc15; }`
+            act(() => document.head.appendChild(style))
+
+            await waitFor(() => {
+                expect(Uniwind.getCSSVariable(variableName)).toBe('#facc15')
+                expect(result.current).toBe('#facc15')
+            })
+
+            act(() => style.remove())
+
+            await waitFor(() => {
+                expect(Uniwind.getCSSVariable(variableName)).toBe('')
+                expect(result.current).toBe('')
+            })
+        } finally {
+            style.remove()
         }
     })
 })
