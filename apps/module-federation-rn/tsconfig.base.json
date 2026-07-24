@@ -1,0 +1,8 @@
+{
+    "extends": "@react-native/typescript-config",
+    "compilerOptions": {
+        "moduleSuffixes": [".native", ""],
+        "strict": true,
+        "types": ["react", "react-native", "uniwind/types"]
+    }
+}
