@@ -1,10 +1,11 @@
 import type { Insets } from 'react-native'
 import { StyleDependency } from '../../common/consts'
+import { arrayEquals } from '../../common/utils'
 import { UniwindListener } from '../listener'
 import { Logger } from '../logger'
 import { UniwindStore } from '../native'
 import { createVarGetter } from '../native/native-utils'
-import type { CSSVariables, GenerateStyleSheetsCallback, ThemeName } from '../types'
+import type { CSSVariables, GenerateStyleSheetsCallback, ThemeName, Vars } from '../types'
 import { UniwindConfigBuilder as UniwindConfigBuilderBase } from './config.common'
 
 class UniwindConfigBuilder extends UniwindConfigBuilderBase {
@@ -15,6 +16,8 @@ class UniwindConfigBuilder extends UniwindConfigBuilderBase {
     }
 
     updateCSSVariables(theme: ThemeName, variables: CSSVariables) {
+        const runtimeVars = {} as Vars
+
         Object.entries(variables).forEach(([varName, varValue]) => {
             if (!varName.startsWith('--') && __DEV__) {
                 Logger.error(`CSS variable name must start with "--", instead got: ${varName}`)
@@ -22,10 +25,10 @@ class UniwindConfigBuilder extends UniwindConfigBuilderBase {
                 return
             }
 
-            UniwindStore.vars[theme] ??= {}
-            UniwindStore.vars[theme][varName] = createVarGetter(varValue)
+            runtimeVars[varName] = createVarGetter(varValue)
         })
 
+        UniwindStore.updateCSSVariables(theme, runtimeVars)
         UniwindListener.notify([StyleDependency.Variables])
     }
 
@@ -49,6 +52,14 @@ class UniwindConfigBuilder extends UniwindConfigBuilderBase {
         super.__reinit(generateStyleSheetCallback, themes)
         UniwindStore.reinit(generateStyleSheetCallback, themes)
         this.stylesFingerprint = stylesFingerprint
+    }
+
+    protected __mergeStyles(id: string, generateStyleSheetCallback: GenerateStyleSheetsCallback, themes: Array<string>) {
+        if (!arrayEquals(themes, this._themes)) {
+            throw new Error(`Uniwind: Federated styles '${id}' must use the host themes.`)
+        }
+
+        return UniwindStore.merge(id, generateStyleSheetCallback, themes)
     }
 
     protected onThemeChange() {
