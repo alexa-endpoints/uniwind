@@ -1,15 +1,19 @@
 import { UniwindBundlerConfig } from '@/bundler/config'
-import type { UniwindConfig } from '@/bundler/types'
+import type { UniwindMetroConfig } from '@/bundler/types'
 import { Platform } from '@/common/consts'
 import type { MetroConfig } from 'metro-config'
 import type * as MetroResolverModule from 'metro-resolver'
 import type { CustomResolver } from 'metro-resolver'
 import { createRequire } from 'node:module'
-import { join, resolve } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { cacheStore, patchMetroGraphToIncludeCssInLazyGraphs, patchMetroGraphToSupportUncachedModules } from './patches'
 import { isInternalOrigin, nativeResolver, webResolver } from './resolvers'
 
 const isUniwindRequest = (moduleName: string) => moduleName === 'uniwind' || moduleName.startsWith('uniwind/')
+
+// Another installed uniwind package, as opposed to this copy or a module that the configured resolver
+// deliberately substitutes for `uniwind` (e.g. Module Federation's proxy for a shared `uniwind` singleton).
+const isOtherUniwindCopy = (filePath: string) => filePath.includes(`${sep}node_modules${sep}uniwind${sep}`) && !isInternalOrigin(filePath)
 
 const isExpoMetroConfig = (config: MetroConfig) => {
     const transformerPath = config.transformerPath
@@ -25,7 +29,7 @@ const isExpoMetroConfig = (config: MetroConfig) => {
 
 export const withUniwindConfig = <T extends MetroConfig>(
     config: T,
-    uniwindConfig: UniwindConfig,
+    uniwindConfig: UniwindMetroConfig,
 ): T => {
     const bundlerConfig = UniwindBundlerConfig.fromMetroConfig(uniwindConfig)
     const pinnedUniwindOrigin = join(config.projectRoot ?? process.cwd(), 'package.json')
@@ -64,7 +68,7 @@ export const withUniwindConfig = <T extends MetroConfig>(
                         // fix for Expo's autolinking resolver which resolves by package name and lands on another hoisted
                         // uniwind copy when this one is installed under an alias (e.g. pnpm + npm:uniwind-pro)
                         // instead use default metro-resolver resolveRequest
-                        if (resolution.type === 'sourceFile' && !isInternalOrigin(resolution.filePath)) {
+                        if (resolution.type === 'sourceFile' && isOtherUniwindCopy(resolution.filePath)) {
                             return metroResolve({ ...pinnedContext, resolveRequest: metroResolve }, nextModuleName, nextPlatform)
                         }
 

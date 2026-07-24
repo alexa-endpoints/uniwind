@@ -76,7 +76,12 @@ export const transform = async (
     const isWeb = bundlerConfig.platform === Platform.Web
     const importedStylesheets = new Set<string>()
     const virtualCode = await compileCSS(bundlerConfig, dependency => {
-        if (!isWeb && options.dev && dependency.endsWith('.css') && !dependency.includes(`${path.sep}node_modules${path.sep}`)) {
+        // The generated artifact isn't watched: this transform rewrites it, and the projects of a workspace share it,
+        // so each running Metro server would rebuild whenever another one rewrites it with its own themes.
+        if (
+            !isWeb && options.dev && dependency.endsWith('.css') && !dependency.includes(`${path.sep}node_modules${path.sep}`)
+            && dependency !== cssArtifactPath
+        ) {
             importedStylesheets.add(dependency)
         }
     })
@@ -99,7 +104,16 @@ export const transform = async (
             : [
                 ...importedStylesheetRequires,
                 `const { Uniwind } = require('uniwind');`,
-                `Uniwind.__reinit(rt => ${virtualCode}, ${bundlerConfig.stringifiedThemes}, '${nativeStylesFingerprint}');`,
+                ...bundlerConfig.federation
+                    ? [
+                        `const dispose = Uniwind.__mergeStyles(${
+                            JSON.stringify(bundlerConfig.federation.id)
+                        }, rt => ${virtualCode}, ${bundlerConfig.stringifiedThemes});`,
+                        `if (module.hot) { module.hot.dispose(dispose); }`,
+                    ]
+                    : [
+                        `Uniwind.__reinit(rt => ${virtualCode}, ${bundlerConfig.stringifiedThemes}, '${nativeStylesFingerprint}');`,
+                    ],
             ].join(''),
         'utf-8',
     )
