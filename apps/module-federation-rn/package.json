@@ -1,0 +1,12 @@
+{
+    "name": "uniwind-module-federation-rn-example",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "android": "bun ./start.mjs android",
+        "check:typescript": "bun run --cwd host check:typescript && bun run --cwd remote-a check:typescript && bun run --cwd remote-b check:typescript",
+        "ios": "bun ./start.mjs ios",
+        "start": "bun ./start.mjs servers",
+        "stop": "bun ./stop.mjs"
+    }
+}

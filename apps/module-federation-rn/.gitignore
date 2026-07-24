@@ -1,0 +1,17 @@
+.servers.pid
+host/android/.cxx/
+host/android/.gradle/
+host/android/.kotlin/
+host/android/app/.cxx/
+host/android/app/build/
+host/android/build/
+host/android/local.properties
+host/ios/.xcode.env.local
+host/ios/DerivedData/
+host/ios/Pods/
+host/ios/build/
+host/ios/xcuserdata/
+host/node_modules/.mf-metro/
+remote-a/node_modules/.mf-metro/
+remote-b/node_modules/.mf-metro/
+*.jsbundle
