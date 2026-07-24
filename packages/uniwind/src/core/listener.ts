@@ -26,6 +26,7 @@ class UniwindListenerBuilder {
         [StyleDependency.Rtl]: new Set<() => void>(),
         [StyleDependency.AdaptiveThemes]: new Set<() => void>(),
         [StyleDependency.Variables]: new Set<() => void>(),
+        [StyleDependency.Stylesheet]: new Set<() => void>(),
     }
 
     getSnapshot = (dependencies: Array<StyleDependency>) =>
