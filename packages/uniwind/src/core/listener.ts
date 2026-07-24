@@ -15,6 +15,7 @@ class UniwindListenerBuilder {
         [StyleDependency.Rtl]: 0,
         [StyleDependency.AdaptiveThemes]: 0,
         [StyleDependency.Variables]: 0,
+        [StyleDependency.Stylesheet]: 0,
     }
     private listeners = {
         [StyleDependency.ColorScheme]: new Set<() => void>(),
@@ -26,6 +27,7 @@ class UniwindListenerBuilder {
         [StyleDependency.Rtl]: new Set<() => void>(),
         [StyleDependency.AdaptiveThemes]: new Set<() => void>(),
         [StyleDependency.Variables]: new Set<() => void>(),
+        [StyleDependency.Stylesheet]: new Set<() => void>(),
     }
 
     getSnapshot = (dependencies: Array<StyleDependency>) =>

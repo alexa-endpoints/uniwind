@@ -12,7 +12,12 @@ let warned = false
 
 const logDevError = (name: string) => {
     // Silent warnings for SSR
-    if (Platform.OS === 'web' && (typeof document === 'undefined' || typeof window === 'undefined')) {
+    const globalScope = globalThis as {
+        document?: unknown
+        window?: unknown
+    }
+
+    if (Platform.OS === 'web' && (globalScope.document === undefined || globalScope.window === undefined)) {
         return
     }
 

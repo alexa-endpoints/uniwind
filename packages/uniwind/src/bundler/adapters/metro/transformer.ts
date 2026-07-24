@@ -106,7 +106,16 @@ export const transform = async (
             : [
                 ...importedStylesheetRequires,
                 `const { Uniwind } = require('uniwind');`,
-                `Uniwind.__reinit(rt => ${virtualCode}, ${bundlerConfig.stringifiedThemes}, '${nativeStylesFingerprint}');`,
+                ...bundlerConfig.federation
+                    ? [
+                        `const dispose = Uniwind.__mergeStyles(${
+                            JSON.stringify(bundlerConfig.federation.id)
+                        }, rt => ${virtualCode}, ${bundlerConfig.stringifiedThemes});`,
+                        `if (module.hot) { module.hot.dispose(dispose); }`,
+                    ]
+                    : [
+                        `Uniwind.__reinit(rt => ${virtualCode}, ${bundlerConfig.stringifiedThemes}, '${nativeStylesFingerprint}');`,
+                    ],
             ].join(''),
         'utf-8',
     )

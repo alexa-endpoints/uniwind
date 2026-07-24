@@ -17,5 +17,5 @@ export const getVariableValue = (name: string, uniwindContext: UniwindContextTyp
             getScopedVars(uniwindContext.variables),
         )
 
-    return vars[name]?.(vars)
+    return vars[name]?.(vars) as string | number | undefined
 }
