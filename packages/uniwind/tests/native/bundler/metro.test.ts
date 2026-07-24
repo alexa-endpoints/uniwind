@@ -1,6 +1,7 @@
 import type { MetroConfig } from 'metro-config'
 import type { CustomResolutionContext, CustomResolver, Resolution } from 'metro-resolver'
-import { realpathSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { withUniwindConfig } from '../../../src/bundler/adapters/metro/metro'
 
@@ -57,6 +58,19 @@ test('resolves uniwind again with metro-resolver when the configured resolver pi
     expect(resolution).toEqual({ type: 'sourceFile', filePath: internalEntry })
 })
 
+test('keeps the configured resolution when it redirects uniwind to a module that is not a uniwind copy', () => {
+    // Module Federation resolves a shared `uniwind` to a generated proxy that returns the host's singleton.
+    const sharedProxy = join(projectRoot, 'node_modules', '.mf-metro', 'shared', 'uniwind.js')
+    mockMetroResolve.mockReturnValue({ type: 'sourceFile', filePath: internalEntry })
+    const configuredResolver = jest.fn<Resolution, Parameters<CustomResolver>>(() => ({ type: 'sourceFile', filePath: sharedProxy }))
+
+    const resolution = resolveUniwind(configuredResolver)
+
+    expect(mockMetroResolve).not.toHaveBeenCalled()
+    expect(configuredResolver.mock.calls[0]![0].originModulePath).toBe(join(projectRoot, 'package.json'))
+    expect(resolution).toEqual({ type: 'sourceFile', filePath: sharedProxy })
+})
+
 test('keeps the configured resolution when it points to this uniwind copy', () => {
     const configuredResolver = jest.fn<Resolution, Parameters<CustomResolver>>(() => ({ type: 'sourceFile', filePath: internalEntry }))
 
@@ -65,4 +79,28 @@ test('keeps the configured resolution when it points to this uniwind copy', () =
     expect(mockMetroResolve).not.toHaveBeenCalled()
     expect(configuredResolver.mock.calls[0]![0].originModulePath).toBe(join(projectRoot, 'package.json'))
     expect(resolution).toEqual({ type: 'sourceFile', filePath: internalEntry })
+})
+
+test('keeps the configured resolution when it reaches this uniwind copy through node_modules/uniwind', () => {
+    // Real installs place this copy under node_modules/uniwind, so the configured resolution must not be re-resolved.
+    const root = mkdtempSync(join(tmpdir(), 'uniwind-metro-'))
+
+    try {
+        const linkedRoot = join(root, 'node_modules', 'uniwind')
+        mkdirSync(dirname(linkedRoot), { recursive: true })
+        symlinkSync(internalRoot, linkedRoot, 'dir')
+
+        const linkedEntry = join(linkedRoot, 'src', 'index.ts')
+        expect(realpathSync(linkedEntry)).toBe(internalEntry)
+
+        const configuredResolver = jest.fn<Resolution, Parameters<CustomResolver>>(() => ({ type: 'sourceFile', filePath: linkedEntry }))
+
+        const resolution = resolveUniwind(configuredResolver)
+
+        expect(mockMetroResolve).not.toHaveBeenCalled()
+        expect(configuredResolver.mock.calls[0]![0].originModulePath).toBe(join(projectRoot, 'package.json'))
+        expect(resolution).toEqual({ type: 'sourceFile', filePath: linkedEntry })
+    } finally {
+        rmSync(root, { force: true, recursive: true })
+    }
 })
