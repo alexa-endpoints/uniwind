@@ -62,6 +62,75 @@
       "name": "uniwind-module-federation-example",
       "version": "1.0.0",
     },
+    "apps/module-federation-rn": {
+      "name": "uniwind-module-federation-rn-example",
+      "version": "1.0.0",
+    },
+    "apps/module-federation-rn/host": {
+      "name": "uniwind-module-federation-rn-host",
+      "version": "1.0.0",
+      "dependencies": {
+        "@module-federation/metro": "catalog:",
+        "@module-federation/runtime": "catalog:",
+        "react": "catalog:",
+        "react-native": "catalog:",
+        "tailwindcss": "catalog:",
+        "uniwind": "workspace:*",
+      },
+      "devDependencies": {
+        "@babel/core": "7.29.7",
+        "@react-native-community/cli": "20.2.0",
+        "@react-native-community/cli-platform-android": "20.2.0",
+        "@react-native-community/cli-platform-ios": "20.2.0",
+        "@react-native/babel-preset": "0.86.3",
+        "@react-native/metro-config": "0.86.3",
+        "@react-native/typescript-config": "0.86.3",
+        "@types/react": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
+    "apps/module-federation-rn/remote-a": {
+      "name": "uniwind-module-federation-rn-remote-a",
+      "version": "1.0.0",
+      "dependencies": {
+        "@module-federation/metro": "catalog:",
+        "@module-federation/runtime": "catalog:",
+        "react": "catalog:",
+        "react-native": "catalog:",
+        "tailwindcss": "catalog:",
+        "uniwind": "workspace:*",
+      },
+      "devDependencies": {
+        "@babel/core": "7.29.7",
+        "@react-native-community/cli": "20.2.0",
+        "@react-native/babel-preset": "0.86.3",
+        "@react-native/metro-config": "0.86.3",
+        "@react-native/typescript-config": "0.86.3",
+        "@types/react": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
+    "apps/module-federation-rn/remote-b": {
+      "name": "uniwind-module-federation-rn-remote-b",
+      "version": "1.0.0",
+      "dependencies": {
+        "@module-federation/metro": "catalog:",
+        "@module-federation/runtime": "catalog:",
+        "react": "catalog:",
+        "react-native": "catalog:",
+        "tailwindcss": "catalog:",
+        "uniwind": "workspace:*",
+      },
+      "devDependencies": {
+        "@babel/core": "7.29.7",
+        "@react-native-community/cli": "20.2.0",
+        "@react-native/babel-preset": "0.86.3",
+        "@react-native/metro-config": "0.86.3",
+        "@react-native/typescript-config": "0.86.3",
+        "@types/react": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "apps/module-federation/host": {
       "name": "uniwind-module-federation-host",
       "version": "1.0.0",
@@ -2538,6 +2607,14 @@
     "uniwind-module-federation-remote-a": ["uniwind-module-federation-remote-a@workspace:apps/module-federation/remote-a"],
 
     "uniwind-module-federation-remote-b": ["uniwind-module-federation-remote-b@workspace:apps/module-federation/remote-b"],
+
+    "uniwind-module-federation-rn-example": ["uniwind-module-federation-rn-example@workspace:apps/module-federation-rn"],
+
+    "uniwind-module-federation-rn-host": ["uniwind-module-federation-rn-host@workspace:apps/module-federation-rn/host"],
+
+    "uniwind-module-federation-rn-remote-a": ["uniwind-module-federation-rn-remote-a@workspace:apps/module-federation-rn/remote-a"],
+
+    "uniwind-module-federation-rn-remote-b": ["uniwind-module-federation-rn-remote-b@workspace:apps/module-federation-rn/remote-b"],
 
     "unpipe": ["unpipe@1.0.0", "", {}, "sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ=="],
 
