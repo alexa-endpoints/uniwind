@@ -18,7 +18,8 @@
         "packages": [
             "packages/*",
             "apps/*",
-            "apps/module-federation/*"
+            "apps/module-federation/*",
+            "apps/module-federation-rn/*"
         ],
         "catalog": {
             "typescript": "6.0.3",
