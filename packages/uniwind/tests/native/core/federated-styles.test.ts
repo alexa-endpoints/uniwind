@@ -9,6 +9,7 @@ import type { CascadeTable, ComponentState, GenerateStyleSheetsCallback, Style, 
 const context = {
     rtl: null,
     scopedTheme: null,
+    variables: null,
 } satisfies UniwindContextType
 
 type StyleOptions = Partial<Pick<Style, 'complexity' | 'importantComplexity' | 'importantProperties' | 'matches'>>
