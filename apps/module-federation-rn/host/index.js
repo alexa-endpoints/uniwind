@@ -8,5 +8,5 @@ AppRegistry.registerComponent(
     withAsyncStartup(
         () => require('./src/App'),
         () => require('./src/Fallback'),
-    )(),
+    ),
 )

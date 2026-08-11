@@ -59,6 +59,29 @@ const materializeRemoteSharedProxies = (projectRoot, sharedDependencies) => {
     }
 }
 
+const withFederationRuntimeResolver = (uniwindConfig, federatedConfig, projectRoot) => {
+    const federationResolver = federatedConfig.resolver.resolveRequest
+    const uniwindResolver = uniwindConfig.resolver.resolveRequest
+    const federationRuntimeRoot = `${path.join(projectRoot, 'node_modules/.mf-metro')}${path.sep}`
+
+    return {
+        ...uniwindConfig,
+        resolver: {
+            ...uniwindConfig.resolver,
+            resolveRequest: (context, moduleName, platform) => {
+                if (
+                    federationResolver
+                    && context.originModulePath.startsWith(federationRuntimeRoot)
+                ) {
+                    return federationResolver(context, moduleName, platform)
+                }
+
+                return uniwindResolver(context, moduleName, platform)
+            },
+        },
+    }
+}
+
 const createMetroConfig = ({ cssEntryFile, federation, projectRoot }) => {
     const workspaceRoot = path.resolve(projectRoot, '../../..')
     const baseConfig = mergeConfig(getDefaultConfig(projectRoot), {
@@ -94,7 +117,7 @@ const createMetroConfig = ({ cssEntryFile, federation, projectRoot }) => {
         materializeRemoteSharedProxies(projectRoot, sharedDependencies)
     }
 
-    return withUniwindConfig(federatedConfig, {
+    const uniwindConfig = withUniwindConfig(federatedConfig, {
         cssEntryFile,
         ...(isRemote
             ? {
@@ -105,6 +128,8 @@ const createMetroConfig = ({ cssEntryFile, federation, projectRoot }) => {
             }
             : {}),
     })
+
+    return withFederationRuntimeResolver(uniwindConfig, federatedConfig, projectRoot)
 }
 
 module.exports = {

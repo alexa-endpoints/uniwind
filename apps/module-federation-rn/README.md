@@ -70,3 +70,8 @@ depend on Expo or use Expo configuration, entrypoints, CLI, or native modules.
 proxies for remote shared dependencies. This is local compatibility scaffolding
 for a Module Federation Metro 2.8 resolver path that does not register those
 virtual modules when `import: false`; it is not an Uniwind workaround.
+
+Imports originating from Module Federation's generated `.mf-metro` runtime are
+delegated directly to its resolver. This keeps the host's eager `react-native`
+share bound to the stock package while application imports continue through
+Uniwind's component resolver.
