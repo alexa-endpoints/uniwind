@@ -4,6 +4,7 @@ import { UniwindListener } from '../listener'
 class CSSListenerBuilder {
     activeRules = new Set<CSSStyleRule>()
     private classNameListeners = new Map<string, Set<VoidFunction>>()
+    private classNameRevisions = new Map<string, number>()
     private registeredRulesMediaQueries = new Map<string, MediaQueryList>()
     private processedStyleSheets = new Set<CSSStyleSheet>()
     private pendingInitialization: number | undefined = undefined
@@ -47,15 +48,14 @@ class CSSListenerBuilder {
     }
 
     getSnapshot(classNames: string) {
-        const mediaQueries = new Set(
-            classNames
-                .split(' ')
-                .map(className => this.classNameMediaQueryListeners.get(className))
-                .filter(mediaQuery => mediaQuery !== undefined),
-        )
+        const classNameSnapshot = classNames
+            .split(' ')
+            .filter(Boolean)
+            .map(className => this.classNameRevisions.get(className) ?? 0)
+            .join(':')
         const themeSnapshot = UniwindListener.getSnapshot([StyleDependency.Theme, StyleDependency.Variables])
 
-        return `${themeSnapshot}:${Array.from(mediaQueries).map(mediaQuery => Number(mediaQuery.matches)).join('')}`
+        return `${themeSnapshot}:${classNameSnapshot}`
     }
 
     subscribeToClassName(classNames: string, listener: VoidFunction) {
@@ -268,6 +268,7 @@ class CSSListenerBuilder {
     }
 
     private notifyClassName(className: string) {
+        this.classNameRevisions.set(className, (this.classNameRevisions.get(className) ?? 0) + 1)
         this.classNameListeners.get(className)?.forEach(listener => listener())
     }
 
