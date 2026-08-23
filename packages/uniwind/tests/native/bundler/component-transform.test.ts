@@ -1,4 +1,4 @@
-import { transformSync } from '@babel/core'
+import { transformSync, traverse } from '@babel/core'
 import { componentTransform } from '../../../src/bundler/adapters/metro/component-transform'
 import {
     NATIVE_COMPONENT_NAMES,
@@ -71,8 +71,9 @@ const CLASS_PROPS_BY_COMPONENT = {
     ],
 } as const satisfies Record<NativeComponentName, ReadonlyArray<string>>
 
-const transform = (source: string) => {
+const runTransform = (source: string) => {
     const result = transformSync(source, {
+        ast: true,
         babelrc: false,
         configFile: false,
         filename: 'Component.tsx',
@@ -82,12 +83,17 @@ const transform = (source: string) => {
         plugins: [componentTransform],
     })
 
-    if (!result?.code) {
-        throw new Error('Expected Babel to produce code')
+    if (!result?.ast || !result.code) {
+        throw new Error('Expected Babel to produce an AST and code')
     }
 
-    return result.code
+    return {
+        ast: result.ast,
+        code: result.code,
+    }
 }
+
+const transform = (source: string) => runTransform(source).code
 
 describe.each(NATIVE_COMPONENT_NAMES)('%s compile-time dispatch', componentName => {
     test('is exported by the private raw-component module', () => {
@@ -218,6 +224,69 @@ test('optimizes only createElement calls with static classless props', () => {
     expect(code).toContain('createElement(_RawView, null)')
     expect(code).toContain('React.createElement(View, {\n  className: \'flex-1\'')
     expect(code).toContain('React.createElement(View, props)')
+})
+
+test('creates an independent identifier node for every raw component reference', () => {
+    const result = runTransform(`
+        import React from 'react'
+        import { View } from 'react-native'
+
+        export const Component = () => React.createElement(
+            View,
+            null,
+            React.createElement(View, null),
+        )
+    `)
+    const rawImport = result.ast.program.body.find(
+        node =>
+            node.type === 'ImportDeclaration'
+            && node.source.value === RAW_COMPONENTS_MODULE,
+    )
+    if (!rawImport || rawImport.type !== 'ImportDeclaration') {
+        throw new Error('Expected a raw component import')
+    }
+
+    const rawSpecifier = rawImport.specifiers.find(
+        specifier =>
+            specifier.type === 'ImportSpecifier'
+            && specifier.imported.type === 'Identifier'
+            && specifier.imported.name === 'View',
+    )
+    if (!rawSpecifier) {
+        throw new Error('Expected a raw View import')
+    }
+
+    const rawReferences: object[] = []
+    traverse(result.ast, {
+        CallExpression(path) {
+            const component = path.node.arguments[0]
+            if (
+                component?.type === 'Identifier'
+                && component.name === rawSpecifier.local.name
+            ) {
+                rawReferences.push(component)
+            }
+        },
+    })
+
+    expect(rawReferences).toHaveLength(2)
+    expect(rawReferences[0]).not.toBe(rawReferences[1])
+    expect(rawReferences).not.toContain(rawSpecifier.local)
+})
+
+test('does not optimize mutable component aliases', () => {
+    const code = transform(`
+        import React from 'react'
+        import { View } from 'react-native'
+
+        let Alias = View
+        Alias = CustomView
+
+        export const Component = () => React.createElement(Alias, null)
+    `)
+
+    expect(code).not.toContain(RAW_COMPONENTS_MODULE)
+    expect(code).toContain('React.createElement(Alias, null)')
 })
 
 test('does not rewrite unrelated components', () => {
