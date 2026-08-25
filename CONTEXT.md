@@ -125,6 +125,8 @@ Metro integration:
 - Metro adds `css` as source extension and removes it from asset extensions.
 - Metro transformer handles the configured CSS entry file specially. In development, native entries declare imported local CSS files as Metro dependencies, including nested imports and workspace files resolved outside `node_modules`, so token-only edits trigger recompilation. Dependencies are collected afresh on each compile. Files in Uniwind's own package directory are never declared: it holds the stylesheet the transform writes, so declaring it would rebuild the entry after the transform's own write, and the Metro servers of projects sharing one install (a federation host and its remotes) after each other's.
 - Non-entry native CSS is an empty module in plain Metro; Expo keeps its own CSS handling. Web CSS handling is unchanged.
+- `experimental.optimizeClasslessComponents` (off by default) compiles classless native elements
+  to raw React Native components; styled or uncertain references keep existing wrappers.
 - Metro transformer worker selection is lazy, cached per Expo/non-Expo config type, and follows Expo transformer paths or Expo-specific config markers.
 - Host native platform CSS transforms into a JS module that calls `Uniwind.__reinit(...)` with a fingerprint of the generated styles and themes. During development, the native runtime skips reinitialization when that fingerprint is unchanged.
 - Federated remote native CSS transforms into an owner-keyed merge registration, declaring its imported stylesheets in development like a host entry.
