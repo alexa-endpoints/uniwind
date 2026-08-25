@@ -7,6 +7,10 @@ import type * as MetroTransformWorker from 'metro-transform-worker'
 import type { JsTransformerConfig, JsTransformOptions } from 'metro-transform-worker'
 import { createHash } from 'node:crypto'
 import path from 'path'
+import {
+    TRANSFORM_COMPONENTS,
+    UPSTREAM_BABEL_TRANSFORMER,
+} from './constants'
 
 const cssArtifactPath = path.resolve(__dirname, '../../uniwind.css')
 
@@ -48,6 +52,15 @@ const getTransformWorker = (isExpoProject?: boolean): typeof MetroTransformWorke
     return resolvedWorker
 }
 
+export const shouldTransformClasslessComponents = (
+    config: Pick<UniwindMetroConfig, 'experimental'>,
+    data: Buffer,
+    options: Pick<JsTransformOptions, 'platform' | 'type'>,
+) => config.experimental?.optimizeClasslessComponents === true
+    && options.type !== 'asset'
+    && options.platform !== Platform.Web
+    && data.includes('react-native')
+
 export const transform = async (
     config: JsTransformerConfig & {
         uniwind: UniwindMetroConfig
@@ -78,7 +91,33 @@ export const transform = async (
             return worker.transform(config, projectRoot, `${filePath}.js`, Buffer.from(''), options)
         }
 
-        return worker.transform(config, projectRoot, filePath, data, options)
+        const shouldTransformComponents = shouldTransformClasslessComponents(
+            config.uniwind,
+            data,
+            options,
+        )
+
+        if (!shouldTransformComponents) {
+            return worker.transform(config, projectRoot, filePath, data, options)
+        }
+
+        return worker.transform(
+            {
+                ...config,
+                babelTransformerPath: require.resolve('./babel-transformer.cjs'),
+            },
+            projectRoot,
+            filePath,
+            data,
+            {
+                ...options,
+                customTransformOptions: {
+                    ...options.customTransformOptions,
+                    [TRANSFORM_COMPONENTS]: true,
+                    [UPSTREAM_BABEL_TRANSFORMER]: config.babelTransformerPath,
+                },
+            },
+        )
     }
 
     const bundlerConfig = UniwindBundlerConfig.fromMetroConfig(config.uniwind, options.platform)
