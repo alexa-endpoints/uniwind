@@ -23,6 +23,7 @@ export type Polyfills = {
 
 export type UniwindExperimentalConfig = {
     federation?: UniwindFederationConfig
+    optimizeClasslessComponents?: boolean
 }
 
 export type UniwindMetroConfig = UniwindConfig & {
