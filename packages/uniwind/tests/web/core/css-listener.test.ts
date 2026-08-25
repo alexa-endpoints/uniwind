@@ -301,11 +301,13 @@ describe('CSSListener', () => {
             })
 
             listener.mockClear()
+            const snapshot = CSSListener.getSnapshot('rma:md:bg-blue-500')
             mediaQueryList.matches = true
             mediaListeners.forEach(mediaListener => mediaListener(new Event('change')))
 
             expect(Array.from(CSSListener.activeRules).some(rule => rule.selectorText === '.rma\\:md\\:bg-blue-500')).toBe(true)
             expect(listener).toHaveBeenCalled()
+            expect(CSSListener.getSnapshot('rma:md:bg-blue-500')).not.toBe(snapshot)
         } finally {
             dispose()
             style.remove()

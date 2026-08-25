@@ -105,7 +105,8 @@ Configuration shape:
 - `cssEntryFile`: required CSS entry path, resolved from `process.cwd()`.
 - `extraThemes`: optional named themes added to default `light` and `dark`.
 - `dtsFile`: optional generated declaration file path, default `uniwind-types.d.ts`.
-- Metro-only `experimental.federation`: optional experimental host/remote build contract. Hosts may declare exact shared class candidates that are force-generated into the base build; remotes use a stable owner ID and exclude those exact candidates from their scanned delta.
+- Metro-only `experimental.federation`: optional experimental host/remote build contract. Hosts may declare exact shared class candidates that are force-generated into the base build; remotes use a stable owner ID and exclude those exact candidates from their scanned delta. See the [local Module Federation demo](apps/module-federation/README.md).
+- Metro-only `experimental.optimizeClasslessComponents`: optional native compile-time optimization for statically classless built-in React Native elements, default `false`.
 - Metro-only `polyfills.rem`: custom rem base, default `16`.
 - Metro-only `debug` and `isTV` flags exist in types.
 
