@@ -1,4 +1,5 @@
 import type { Selector } from 'lightningcss'
+import type { CascadeTable } from '../../core/types'
 import type { StyleTemplate } from './types'
 
 type Layer = {
@@ -45,6 +46,7 @@ export class Cascade {
         order: [],
         children: new Map(),
     }
+    private readonly root = this.layer
     private rules = new Map<StyleTemplate['meta'], CascadeRule>()
 
     declareLayer(name: Array<string> | null) {
@@ -88,5 +90,34 @@ export class Cascade {
                 meta[important ? 'importantComplexity' : 'complexity'] = index + (important ? rules.length : 0)
             })
         }
+    }
+
+    // Federated registrations compile separately; the native runtime ranks their rules together from this table.
+    getTable(): CascadeTable {
+        const layers: CascadeTable['layers'] = []
+        // Each layer's order array is created once, so it identifies the layer.
+        const layerIndexes = new Map<Array<number>, number>()
+        const addLayers = (parent: Layer, parentIndex: number) => {
+            parent.children.forEach((layer, name) => {
+                const index = layers.push([parentIndex, typeof name === 'string' ? name : null]) - 1
+
+                layerIndexes.set(layer.order, index)
+                addLayers(layer, index)
+            })
+        }
+        const buckets: CascadeTable['buckets'] = []
+        let previous: CascadeRule | undefined
+
+        addLayers(this.root, -1)
+
+        for (const rule of [...this.rules.values()].sort((a, b) => a.meta.complexity - b.meta.complexity)) {
+            if (rule.layer !== previous?.layer || rule.specificity !== previous.specificity) {
+                buckets.push([layerIndexes.get(rule.layer) ?? -1, rule.specificity, rule.meta.complexity])
+            }
+
+            previous = rule
+        }
+
+        return { layers, buckets }
     }
 }

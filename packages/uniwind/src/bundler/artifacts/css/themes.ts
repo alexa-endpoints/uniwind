@@ -2,7 +2,6 @@ import { Logger } from '@/bundler/logger'
 import { compile } from '@tailwindcss/node'
 import fs from 'fs'
 import { transform } from 'lightningcss'
-import type { ImportDependency } from 'lightningcss'
 import path from 'path'
 
 const readFileSafe = (filePath: string) => {
@@ -20,29 +19,38 @@ const isExcludedDependency = (url: string) =>
         url.includes('node_modules/uniwind'),
     ].some(Boolean)
 
-// Strips Tailwind's `source()`, `prefix()` and `theme()` @import options, which Lightning CSS can't parse
-const QUOTED_OR_COMMENT = `/\\*[\\s\\S]*?\\*/|"[^"]*"|'[^']*'`
-const importRuleRegex = new RegExp(`@import(?:${QUOTED_OR_COMMENT}|[^;"'])+;`, 'g')
-const importOptionRegex = new RegExp(`(${QUOTED_OR_COMMENT})|\\s+(?:source|prefix|theme)\\((?:${QUOTED_OR_COMMENT}|[^)"'])*\\)`, 'g')
-
-const stripTailwindImportOptions = (css: string) =>
-    css.replace(importRuleRegex, rule => rule.replace(importOptionRegex, (_, kept?: string) => kept ?? ''))
+const removeImportsForAnalysis = (css: string) => css.replace(/@import(?:[^;"']+|"[^"]*"|'[^']*')+;/g, '')
 
 export const generateCSSForThemes = async (themes: Array<string>, input: string) => {
     // css generation
     const themesVariables = Object.fromEntries(themes.map(theme => [theme, new Set<string>()]))
+    const inputPath = path.resolve(input)
+    const cssPaths = new Set([inputPath])
+    const inputCSS = readFileSafe(inputPath)
 
-    const findVariantsRec = async (cssPath: string) => {
+    if (inputCSS !== null) {
+        await compile(inputCSS, {
+            base: path.dirname(inputPath),
+            onDependency: dependency => {
+                if (!isExcludedDependency(dependency)) {
+                    cssPaths.add(dependency)
+                }
+            },
+        })
+    }
+
+    for (const cssPath of cssPaths) {
         const css = readFileSafe(cssPath)
 
         if (css === null) {
-            return
+            continue
         }
 
-        const { dependencies } = transform({
-            code: Buffer.from(stripTailwindImportOptions(css)),
+        transform({
+            // Tailwind owns import resolution, including prefix(...). Lightning
+            // CSS only inspects import-free source for Uniwind theme metadata.
+            code: Buffer.from(removeImportsForAnalysis(css)),
             filename: 'uniwind.css',
-            analyzeDependencies: true,
             visitor: {
                 Rule: rule => {
                     if (rule.type === 'unknown' && rule.value.name === 'variant') {
@@ -67,45 +75,7 @@ export const generateCSSForThemes = async (themes: Array<string>, input: string)
                 },
             },
         })
-
-        if (!Array.isArray(dependencies)) {
-            return
-        }
-
-        const importUrls = new Set<string>()
-        const importsCSS = dependencies
-            .filter((dependency): dependency is ImportDependency => {
-                if (dependency.type !== 'import') {
-                    return false
-                }
-
-                if (dependency.url.startsWith('.')) {
-                    importUrls.add(path.resolve(path.dirname(cssPath), dependency.url))
-
-                    return false
-                }
-
-                return !isExcludedDependency(dependency.url)
-            })
-            .map(dependency => `@import "${dependency.url}";`).join('\n')
-
-        await compile(importsCSS, {
-            base: path.resolve(path.dirname(cssPath)),
-            onDependency: dependency => {
-                if (isExcludedDependency(dependency)) {
-                    return
-                }
-
-                importUrls.add(dependency)
-            },
-        })
-
-        for (const filePath of importUrls) {
-            await findVariantsRec(filePath)
-        }
     }
-
-    await findVariantsRec(input)
 
     // Check if all themes have the same variables
     let hasErrors = false as boolean

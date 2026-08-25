@@ -10,6 +10,16 @@ import path from 'path'
 
 const cssArtifactPath = path.resolve(__dirname, '../../uniwind.css')
 
+// In development, a native CSS entry requires the stylesheets its compile imported, so that they join
+// Metro's graph and editing one, even to change a single token, re-runs the entry's uncached transform.
+// Installed packages are left out, and so is the directory of Uniwind's generated stylesheet: the
+// transform writes it, so requiring it would rebuild the entry after its own write, and Metro servers
+// of other projects sharing the install (a federation host and its remotes) after each other's.
+const isWatchedStylesheet = (stylesheet: string) =>
+    stylesheet.endsWith('.css')
+    && !stylesheet.includes(`${path.sep}node_modules${path.sep}`)
+    && !stylesheet.startsWith(`${path.dirname(cssArtifactPath)}${path.sep}`)
+
 // Cache workers separately for Expo (`true`) and plain Metro (`false`) configs.
 const workerCache = new Map<boolean, typeof MetroTransformWorker>()
 
@@ -76,7 +86,7 @@ export const transform = async (
     const isWeb = bundlerConfig.platform === Platform.Web
     const importedStylesheets = new Set<string>()
     const virtualCode = await compileCSS(bundlerConfig, dependency => {
-        if (!isWeb && options.dev && dependency.endsWith('.css') && !dependency.includes(`${path.sep}node_modules${path.sep}`)) {
+        if (!isWeb && options.dev && isWatchedStylesheet(dependency)) {
             importedStylesheets.add(dependency)
         }
     })
@@ -85,7 +95,8 @@ export const transform = async (
 
         return `require(${JSON.stringify(relativePath.startsWith('../') ? relativePath : `./${relativePath}`)});`
     })
-    const nativeStylesFingerprint = isWeb
+    const federation = bundlerConfig.federation
+    const nativeStylesFingerprint = isWeb || federation?.role === 'remote'
         ? undefined
         : createHash('sha256')
             .update(virtualCode)
@@ -96,6 +107,13 @@ export const transform = async (
     data = Buffer.from(
         isWeb
             ? virtualCode
+            : federation?.role === 'remote'
+            ? [
+                ...importedStylesheetRequires,
+                `const { Uniwind } = require('uniwind');`,
+                `const dispose = Uniwind.__mergeStyles(${JSON.stringify(federation.id)}, rt => ${virtualCode}, ${bundlerConfig.stringifiedThemes});`,
+                `if (module.hot) { module.hot.dispose(dispose); }`,
+            ].join('')
             : [
                 ...importedStylesheetRequires,
                 `const { Uniwind } = require('uniwind');`,

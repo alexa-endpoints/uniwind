@@ -49,6 +49,10 @@ export class ProcessorBuilder {
         this.cascade.assignRanks()
     }
 
+    getCascadeTable() {
+        return this.cascade.getTable()
+    }
+
     private getDeclarationConfig() {
         return ({
             className: null as string | null,
