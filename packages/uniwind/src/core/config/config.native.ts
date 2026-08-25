@@ -4,7 +4,7 @@ import { UniwindListener } from '../listener'
 import { Logger } from '../logger'
 import { UniwindStore } from '../native'
 import { createVarGetter } from '../native/native-utils'
-import type { CSSVariables, GenerateStyleSheetsCallback, ThemeName } from '../types'
+import type { CSSVariables, GenerateStyleSheetsCallback, ThemeName, Vars } from '../types'
 import { UniwindConfigBuilder as UniwindConfigBuilderBase } from './config.common'
 
 class UniwindConfigBuilder extends UniwindConfigBuilderBase {
@@ -16,17 +16,21 @@ class UniwindConfigBuilder extends UniwindConfigBuilderBase {
     }
 
     updateCSSVariables(theme: ThemeName, variables: CSSVariables) {
+        const runtimeVars = {} as Vars
+
         Object.entries(variables).forEach(([varName, varValue]) => {
-            if (!varName.startsWith('--') && __DEV__) {
-                Logger.error(`CSS variable name must start with "--", instead got: ${varName}`)
+            if (!varName.startsWith('--')) {
+                if (__DEV__) {
+                    Logger.error(`CSS variable name must start with "--", instead got: ${varName}`)
+                }
 
                 return
             }
 
-            UniwindStore.vars[theme] ??= {}
-            UniwindStore.vars[theme][varName] = createVarGetter(varValue)
+            runtimeVars[varName] = createVarGetter(varValue)
         })
 
+        UniwindStore.updateCSSVariables(theme, runtimeVars)
         UniwindListener.notify([StyleDependency.Variables])
     }
 
@@ -43,6 +47,8 @@ class UniwindConfigBuilder extends UniwindConfigBuilderBase {
         themes: Array<string>,
         stylesFingerprint?: string,
     ) {
+        UniwindStore.validateRemoteThemes(themes)
+
         if (__DEV__ && stylesFingerprint !== undefined && stylesFingerprint === this.stylesFingerprint) {
             return
         }
@@ -50,6 +56,16 @@ class UniwindConfigBuilder extends UniwindConfigBuilderBase {
         super.__reinit(generateStyleSheetCallback, themes)
         UniwindStore.reinit(generateStyleSheetCallback, themes)
         this.stylesFingerprint = stylesFingerprint
+    }
+
+    protected __mergeStyles(id: string, generateStyleSheetCallback: GenerateStyleSheetsCallback, themes: Array<string>) {
+        const dispose = UniwindStore.merge(id, generateStyleSheetCallback, themes)
+
+        if (!UniwindStore.hasHostRegistration) {
+            super.__reinit(generateStyleSheetCallback, themes)
+        }
+
+        return dispose
     }
 
     protected onThemeChange() {
