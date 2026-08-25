@@ -38,6 +38,24 @@ export class UniwindBundlerConfig {
             )
         }
 
+        if ('federation' in config) {
+            throw new Error('Uniwind: federation has moved to experimental.federation.')
+        }
+
+        const federation = config.experimental?.federation
+
+        if (federation?.role === 'remote' && federation.id.trim() === '') {
+            throw new Error('Uniwind: experimental.federation.id must be a non-empty stable remote identifier.')
+        }
+
+        federation?.sharedClassNames?.forEach((className) => {
+            if (typeof className !== 'string' || className.trim() === '' || /\s/.test(className)) {
+                throw new Error(
+                    'Uniwind: experimental.federation.sharedClassNames must contain complete non-empty class candidates.',
+                )
+            }
+        })
+
         return new UniwindBundlerConfig(config, getPlatform())
     }
 
@@ -77,6 +95,22 @@ export class UniwindBundlerConfig {
 
     get polyfills() {
         return this.config.polyfills
+    }
+
+    get federation() {
+        return this.config.experimental?.federation
+    }
+
+    get isFederationRemote() {
+        return this.federation?.role === 'remote'
+    }
+
+    get isFederationHost() {
+        return this.federation?.role === 'host'
+    }
+
+    get sharedClassNames() {
+        return Array.from(new Set(this.federation?.sharedClassNames ?? []))
     }
 
     get stringifiedThemes() {
