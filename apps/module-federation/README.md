@@ -109,6 +109,11 @@ The host keeps the normal `__reinit` path. Remote CSS modules emit
 `__mergeStyles(remoteName, ...)`, so each remote replaces only its own
 registration during HMR and disposes only its own registration.
 
+`experimental.optimizeClasslessComponents` can be enabled beside
+`federation`. It only changes native classless component dispatch; elements
+that may use class props stay on the wrapper path, and federation ownership and
+web output are unchanged.
+
 On web, Tailwind prefixing isolates generated selectors and theme variables.
 The remote entries import only `tailwindcss/theme.css`,
 `tailwindcss/utilities.css`, and `uniwind`; they do not import Preflight.
