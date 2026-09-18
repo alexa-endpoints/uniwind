@@ -8,7 +8,7 @@
         "start": "expo start"
     },
     "dependencies": {
-        "@expo/metro-runtime": "57.0.16",
+        "@expo/metro-runtime": "catalog:",
         "@module-federation/metro": "catalog:",
         "@module-federation/runtime": "catalog:",
         "expo": "catalog:",
