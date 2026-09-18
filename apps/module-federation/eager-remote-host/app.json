@@ -1,0 +1,10 @@
+{
+    "expo": {
+        "name": "Uniwind MF eager remote host",
+        "slug": "uniwind-mf-eager-remote-host",
+        "version": "1.0.0",
+        "web": {
+            "bundler": "metro"
+        }
+    }
+}

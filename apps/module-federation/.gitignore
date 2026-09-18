@@ -7,3 +7,5 @@ ios/
 android/
 *.tsbuildinfo
 .servers.pid
+playwright-report/
+test-results/

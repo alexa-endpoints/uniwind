@@ -2,9 +2,15 @@ type UniwindFederationSharedConfig = {
     sharedClassNames?: ReadonlyArray<string>
 }
 
+type UniwindInlinedRemoteConfig = UniwindFederationSharedConfig & {
+    id: string
+    cssEntryFile: string
+}
+
 export type UniwindFederationConfig =
     | UniwindFederationSharedConfig & {
         role: 'host'
+        inlinedRemotes?: ReadonlyArray<UniwindInlinedRemoteConfig>
     }
     | UniwindFederationSharedConfig & {
         role: 'remote'

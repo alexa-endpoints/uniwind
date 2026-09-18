@@ -115,6 +115,33 @@ describe('imported stylesheets', () => {
         expect(code.indexOf('require("')).toBeLessThan(code.indexOf('Uniwind.__mergeStyles("remote-a"'))
     })
 
+    test('an inlined remote requires its own imports, relative to itself', async () => {
+        const hostCSSPath = createProject()
+        const remoteCSSPath = path.join(directory, 'remote', 'remote.css')
+
+        writeFiles({
+            'remote/remote.css': ['@import "tailwindcss";', '@import "./remote-tokens.css";'].join('\n'),
+            'remote/remote-tokens.css': '@theme { --color-remote: #0000ff; }',
+            'remote/Remote.tsx': `export const className = 'bg-remote'`,
+        })
+
+        const uniwind: UniwindMetroConfig = {
+            cssEntryFile: path.relative(process.cwd(), hostCSSPath),
+            experimental: {
+                federation: {
+                    role: 'host',
+                    inlinedRemotes: [{ id: 'remote-a', cssEntryFile: path.relative(process.cwd(), remoteCSSPath) }],
+                },
+            },
+        }
+        const host = await transformEntry(uniwind)
+        const remote = (await transformFile(uniwind, remoteCSSPath)).output[0]?.data.code as string
+
+        expect(stylesheetRequires(host)).toEqual(NESTED_REQUIRES)
+        expect(stylesheetRequires(remote)).toEqual(['./remote-tokens.css'])
+        expect(remote).toContain('Uniwind.__mergeStyles("remote-a"')
+    })
+
     test('production builds and web CSS require nothing', async () => {
         const uniwind = { cssEntryFile: path.relative(process.cwd(), createProject()) }
 
@@ -143,6 +170,25 @@ describe('non-entry CSS', () => {
 
         expect(filePath).toBe(`${path.relative(process.cwd(), tokensPath)}.js`)
         expect(data.toString()).toBe('')
+    })
+
+    test('plain Metro still compiles an inlined remote entry', async () => {
+        const remoteCSSPath = path.join(directory, 'remote', 'remote.css')
+
+        writeFiles({ 'remote/remote.css': '@import "tailwindcss";' })
+
+        const code = await transformFile({
+            cssEntryFile: path.relative(process.cwd(), createProject()),
+            isExpoProject: false,
+            experimental: {
+                federation: {
+                    role: 'host',
+                    inlinedRemotes: [{ id: 'remote-a', cssEntryFile: path.relative(process.cwd(), remoteCSSPath) }],
+                },
+            },
+        }, remoteCSSPath).then(result => result.output[0]?.data.code as string)
+
+        expect(code).toContain('Uniwind.__mergeStyles("remote-a"')
     })
 
     test.each([
