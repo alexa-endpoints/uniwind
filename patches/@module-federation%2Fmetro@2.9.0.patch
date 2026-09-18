@@ -1,0 +1,97 @@
+diff --git a/dist/runtime/init-host.js b/dist/runtime/init-host.js
+index 05eb355143bdfa435146e783fcb77f3ed88571af..a8a652ad4e14fccfb589f9df6f87715fdb521d77 100644
+--- a/dist/runtime/init-host.js
++++ b/dist/runtime/init-host.js
+@@ -1,4 +1,9 @@
+-import { loadRemoteToRegistry, loadSharedToRegistry } from 'mf:remote-module-registry';
++import {
++    loadRemoteToRegistry,
++    loadSharedToRegistry,
++    loadSharedToRegistrySync,
++    reserveSharedModules
++} from 'mf:remote-module-registry';
+ import { init } from '@module-federation/runtime';
+ __PLUGINS__;
+ const usedRemotes = __REMOTES__;
+@@ -13,6 +18,13 @@ const instance = init({
+     shared: usedShared,
+     shareStrategy
+ });
++const eagerShared = Object.entries(usedShared).filter(([, shared])=>shared.shareConfig.eager).map(([id])=>id);
++reserveSharedModules([
++    ...new Set([
++        ...eagerShared,
++        ...__EARLY_SHARED__
++    ])
++]);
+ globalThis.__FEDERATION__ ??= {};
+ globalThis.__FEDERATION__.__NATIVE__ ??= {};
+ globalThis.__FEDERATION__.__NATIVE__[name] ??= {};
+@@ -25,7 +37,8 @@ globalThis.__FEDERATION__.__NATIVE__[name].init = Promise.all(instance.initializ
+     from: 'build',
+     initScope: []
+ })).then(()=>Promise.all([
+-        ...Object.keys(usedShared).map(loadSharedToRegistry),
+-        ...__EARLY_REMOTES__.map(loadRemoteToRegistry)
+-    ]));
++    ...Object.keys(usedShared).map(loadSharedToRegistry),
++    ...__EARLY_REMOTES__.map(loadRemoteToRegistry)
++]));
++eagerShared.forEach(loadSharedToRegistrySync);
+ __EARLY_SHARED__.forEach(loadSharedToRegistry);
+diff --git a/dist/runtime/remote-module-registry.js b/dist/runtime/remote-module-registry.js
+index e0201d2cf20b8ed3df72d630e38f42b2c7fd22c1..0db2c0c10e0fe4f294ecf55e23a32709fa5ad1a3 100644
+--- a/dist/runtime/remote-module-registry.js
++++ b/dist/runtime/remote-module-registry.js
+@@ -1,7 +1,22 @@
+ import { loadRemote, loadShare, loadShareSync } from '@module-federation/runtime';
+ const registry = {};
+ const loading = {};
++const reserved = new Set();
+ const earlyModuleTest = __EARLY_MODULE_TEST__;
++export function reserveSharedModules(ids) {
++    for (const id of ids){
++        reserved.add(id);
++        const target = registry[id] ??= {
++            __esModule: true
++        };
++        if (!Object.prototype.hasOwnProperty.call(target, 'default')) {
++            Object.defineProperty(target, 'default', {
++                configurable: true,
++                value: target
++            });
++        }
++    }
++}
+ function cloneModule(module, target) {
+     for (const key of Object.getOwnPropertyNames(module)){
+         const descriptor = Object.getOwnPropertyDescriptor(module, key);
+@@ -36,21 +51,25 @@ export async function loadSharedToRegistryAsync(id) {
+     const promise = loading[id];
+     if (promise) await promise;
+     else {
+-        registry[id] = {};
++        const target = registry[id] ??= {};
+         loading[id] = (async ()=>{
+             const factory = await loadShare(id);
+             const sharedModule = factory();
+-            cloneModule(sharedModule, registry[id]);
++            cloneModule(sharedModule, target);
+         })();
+         await loading[id];
+     }
+ }
+ export function loadSharedToRegistrySync(id) {
+     if (loading[id]) return;
++    const target = registry[id];
+     loading[id] = loadShareSync(id);
+-    registry[id] = loading[id]();
++    const sharedModule = loading[id]();
++    if (target) cloneModule(sharedModule, target);
++    else registry[id] = sharedModule;
+ }
+ export function getModuleFromRegistry(id) {
++    if (reserved.has(id) && !loading[id]) loadSharedToRegistrySync(id);
+     const module = registry[id];
+     if (!module) throw new Error(`Module ${id} not found in registry`);
+     return module;
