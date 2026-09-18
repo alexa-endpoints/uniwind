@@ -134,7 +134,7 @@ Metro integration:
 - Web platform CSS transforms into CSS plus web runtime setup.
 - Resolver swaps React Native component imports to Uniwind-aware implementations where needed.
 - On web, imports originating inside React Native Web keep their original components, preventing cycles through Uniwind wrappers. Animated component imports still receive wrappers, matching the native resolver, and the internal `createOrderedCSSStyleSheet` override remains active. Application and third-party component imports still resolve to styled wrappers.
-- `uniwind` and `uniwind/*` requests resolve from `<projectRoot>/package.json`, so every importer gets the app's copy. If the configured resolver returns a source file outside this package (e.g. Expo autolinking resolution picks a hoisted public `uniwind` while Pro is installed under an alias such as `"uniwind": "npm:uniwind-pro"`), the request is resolved again with Metro's default `metro-resolver`.
+- `uniwind` and `uniwind/*` requests first resolve from the importing module, so upstream virtual and provider-origin resolutions (such as Module Federation shared modules) are kept. When that resolution fails or lands in a different installed `uniwind` package, the request is pinned to `<projectRoot>/package.json`, so every importer gets the app's copy. If the pinned resolution still returns a source file outside this package (e.g. Expo autolinking resolution picks a hoisted public `uniwind` while Pro is installed under an alias such as `"uniwind": "npm:uniwind-pro"`), the request is resolved again with Metro's default `metro-resolver`.
 
 Vite integration:
 
@@ -229,7 +229,7 @@ Testing layout:
 
 Native test setup disables Node's optional `module.register` and `module.registerHooks` before importing Tailwind. Jest 30 cannot run these loader hooks in its module sandbox; Tailwind uses its normal module-loading path when the hooks are unavailable.
 
-The bare example's React Native CLI uses Metro 0.84 internally. The Metro development dependency stays on 0.85 until that CLI is upgraded: Metro 0.86/0.87 transformer workers emit full source maps that the older CLI serializer cannot consume. Metro dependency upgrades must pass the bare production bundle checks.
+The bare example's React Native CLI uses Metro 0.84 internally. The Metro development dependency follows the root `metro` catalog entry, which matches the version `@expo/metro` pins (0.84.5), so the hoisted `metro` and `metro-resolver` are the copies Expo loads. It stays below 0.86 until that CLI is upgraded: Metro 0.86/0.87 transformer workers emit full source maps that the older CLI serializer cannot consume. Metro dependency upgrades must pass the bare production bundle checks.
 
 Source-of-truth policy: repository code and tests win for implementation details. External docs at `docs.uniwind.dev` describe intended public behavior and should be updated when public behavior changes.
 

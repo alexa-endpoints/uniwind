@@ -4,13 +4,43 @@ import { Platform } from '@/common/consts'
 import type { MetroConfig } from 'metro-config'
 import type * as MetroResolverModule from 'metro-resolver'
 import type { CustomResolver } from 'metro-resolver'
+import { realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { RAW_COMPONENTS_MODULE } from './constants'
 import { cacheStore, patchMetroGraphToIncludeCssInLazyGraphs, patchMetroGraphToSupportUncachedModules } from './patches'
 import { isInternalOrigin, nativeResolver, webResolver } from './resolvers'
 
 const isUniwindRequest = (moduleName: string) => moduleName === 'uniwind' || moduleName.startsWith('uniwind/')
+
+const getRealPath = (filePath: string) => {
+    try {
+        return realpathSync(filePath)
+    } catch {
+        return filePath
+    }
+}
+
+const isPathWithin = (filePath: string, directory: string) => {
+    const relativePath = relative(directory, filePath)
+
+    return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath))
+}
+
+const getOwningUniwindRoot = (filePath: string) => {
+    const realFilePath = getRealPath(filePath)
+
+    try {
+        const packageJsonPath = require.resolve('uniwind/package.json', {
+            paths: [dirname(realFilePath)],
+        })
+        const packageRoot = dirname(getRealPath(packageJsonPath))
+
+        return isPathWithin(realFilePath, packageRoot) ? packageRoot : undefined
+    } catch {
+        return undefined
+    }
+}
 
 const isExpoMetroConfig = (config: MetroConfig) => {
     const transformerPath = config.transformerPath
@@ -31,10 +61,11 @@ export const withUniwindConfig = <T extends MetroConfig>(
     const bundlerConfig = UniwindBundlerConfig.fromMetroConfig(uniwindConfig)
     const pinnedUniwindOrigin = join(config.projectRoot ?? process.cwd(), 'package.json')
     const { resolve: metroResolve } = createRequire(require.resolve('metro/package.json'))('metro-resolver') as typeof MetroResolverModule
+    const activeUniwindRoot = dirname(getRealPath(require.resolve('uniwind/package.json')))
     const optimizeClasslessComponents = uniwindConfig.experimental?.optimizeClasslessComponents === true
     const rawComponentsPath = optimizeClasslessComponents
         ? join(
-            dirname(require.resolve('uniwind/package.json')),
+            activeUniwindRoot,
             'src/bundler/adapters/metro/raw-components.ts',
         )
         : undefined
@@ -74,6 +105,22 @@ export const withUniwindConfig = <T extends MetroConfig>(
                             ...nextContext,
                             originModulePath: pinnedUniwindOrigin,
                         }
+
+                        try {
+                            const resolution = baseResolver(nextContext, nextModuleName, nextPlatform)
+
+                            if (resolution.type !== 'sourceFile') {
+                                return resolution
+                            }
+
+                            const owningUniwindRoot = getOwningUniwindRoot(resolution.filePath)
+                            if (!owningUniwindRoot || owningUniwindRoot === activeUniwindRoot) {
+                                return resolution
+                            }
+                        } catch {
+                            // Fall back to the active project installation below.
+                        }
+
                         const resolution = baseResolver(pinnedContext, nextModuleName, nextPlatform)
 
                         // fix for Expo's autolinking resolver which resolves by package name and lands on another hoisted

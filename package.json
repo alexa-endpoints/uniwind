@@ -25,11 +25,13 @@
             "@types/bun": "1.4.2",
             "@types/react": "19.2.18",
             "@types/react-dom": "19.2.7",
-            "@module-federation/metro": "2.8.0",
-            "@module-federation/runtime": "2.8.0",
+            "@expo/metro-runtime": "57.0.16",
+            "@module-federation/metro": "2.9.0",
+            "@module-federation/runtime": "2.9.0",
             "react": "19.2.3",
             "react-dom": "19.2.3",
             "expo": "57.0.26",
+            "metro": "0.84.5",
             "react-native": "0.86.3",
             "react-native-web": "0.21.3",
             "tailwindcss": "4.3.3",
@@ -47,5 +49,8 @@
     "packageManager": "bun@1.3.14",
     "trustedDependencies": [
         "@tailwindcss/oxide"
-    ]
+    ],
+    "patchedDependencies": {
+        "@module-federation/metro@2.9.0": "patches/@module-federation%2Fmetro@2.9.0.patch"
+    }
 }

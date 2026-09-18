@@ -1,6 +1,7 @@
 import type { MetroConfig } from 'metro-config'
 import type { CustomResolutionContext, CustomResolver, Resolution } from 'metro-resolver'
-import { realpathSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { withUniwindConfig } from '../../../src/bundler/adapters/metro/metro'
 
@@ -20,7 +21,10 @@ jest.mock('../../../src/bundler/adapters/metro/patches', () => ({
 const projectRoot = join('/', 'workspace', 'apps', 'pro-app')
 const internalRoot = dirname(realpathSync(require.resolve('uniwind/package.json')))
 const internalEntry = join(internalRoot, 'src', 'index.ts')
-const hoistedEntry = join('/', 'workspace', 'node_modules', 'uniwind', 'src', 'index.ts')
+// A real package on disk, so the resolver can tell another installed uniwind copy apart from virtual modules.
+const hoistedRoot = mkdtempSync(join(tmpdir(), 'uniwind-hoisted-'))
+const hoistedEntry = join(hoistedRoot, 'node_modules', 'uniwind', 'src', 'index.ts')
+const virtualEntry = join(projectRoot, 'node_modules', '.mf-metro', 'shared', 'uniwind.js')
 
 const resolveUniwind = (configuredResolver: CustomResolver) => {
     const config = withUniwindConfig({
@@ -35,6 +39,16 @@ const resolveUniwind = (configuredResolver: CustomResolver) => {
     return config.resolver!.resolveRequest!(context, 'uniwind', 'ios')
 }
 
+beforeAll(() => {
+    mkdirSync(dirname(hoistedEntry), { recursive: true })
+    writeFileSync(join(hoistedRoot, 'node_modules', 'uniwind', 'package.json'), JSON.stringify({ name: 'uniwind' }))
+    writeFileSync(hoistedEntry, '')
+})
+
+afterAll(() => {
+    rmSync(hoistedRoot, { recursive: true, force: true })
+})
+
 beforeEach(() => {
     mockMetroResolve.mockReset()
 })
@@ -45,7 +59,10 @@ test('resolves uniwind again with metro-resolver when the configured resolver pi
 
     const resolution = resolveUniwind(configuredResolver)
 
-    expect(configuredResolver).toHaveBeenCalledTimes(1)
+    // The importer's own resolution lands in another copy, so the request is pinned to the project and resolved again.
+    expect(configuredResolver).toHaveBeenCalledTimes(2)
+    expect(configuredResolver.mock.calls[0]![0].originModulePath).toBe(join(projectRoot, 'src', 'App.tsx'))
+    expect(configuredResolver.mock.calls[1]![0].originModulePath).toBe(join(projectRoot, 'package.json'))
     expect(mockMetroResolve).toHaveBeenCalledTimes(1)
 
     const [context, moduleName, platform] = mockMetroResolve.mock.calls[0]!
@@ -63,6 +80,18 @@ test('keeps the configured resolution when it points to this uniwind copy', () =
     const resolution = resolveUniwind(configuredResolver)
 
     expect(mockMetroResolve).not.toHaveBeenCalled()
-    expect(configuredResolver.mock.calls[0]![0].originModulePath).toBe(join(projectRoot, 'package.json'))
+    expect(configuredResolver).toHaveBeenCalledTimes(1)
+    expect(configuredResolver.mock.calls[0]![0].originModulePath).toBe(join(projectRoot, 'src', 'App.tsx'))
     expect(resolution).toEqual({ type: 'sourceFile', filePath: internalEntry })
+})
+
+test('keeps configured resolutions outside any uniwind package, such as federation shared modules', () => {
+    const configuredResolver = jest.fn<Resolution, Parameters<CustomResolver>>(() => ({ type: 'sourceFile', filePath: virtualEntry }))
+
+    const resolution = resolveUniwind(configuredResolver)
+
+    expect(mockMetroResolve).not.toHaveBeenCalled()
+    expect(configuredResolver).toHaveBeenCalledTimes(1)
+    expect(configuredResolver.mock.calls[0]![0].originModulePath).toBe(join(projectRoot, 'src', 'App.tsx'))
+    expect(resolution).toEqual({ type: 'sourceFile', filePath: virtualEntry })
 })

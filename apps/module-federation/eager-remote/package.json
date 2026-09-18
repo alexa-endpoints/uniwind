@@ -1,5 +1,5 @@
 {
-    "name": "uniwind-module-federation-host",
+    "name": "uniwind-module-federation-eager-remote",
     "version": "1.0.0",
     "private": true,
     "main": "index.js",
