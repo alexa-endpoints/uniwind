@@ -39,7 +39,7 @@
       "name": "uniwind-expo-example",
       "version": "1.0.0",
       "dependencies": {
-        "@expo/metro-runtime": "58.0.15",
+        "@expo/metro-runtime": "catalog:",
         "expo": "catalog:",
         "expo-splash-screen": "58.0.11",
         "expo-status-bar": "58.0.4",
@@ -62,15 +62,82 @@
       "name": "uniwind-module-federation-example",
       "version": "1.0.0",
       "devDependencies": {
+        "@playwright/test": "1.64.1",
         "lightningcss": "1.30.1",
         "playwright": "1.64.1",
+      },
+    },
+    "apps/module-federation/eager-host": {
+      "name": "uniwind-module-federation-eager-host",
+      "version": "1.0.0",
+      "dependencies": {
+        "@expo/metro-runtime": "catalog:",
+        "@module-federation/metro": "catalog:",
+        "@module-federation/runtime": "catalog:",
+        "expo": "catalog:",
+        "react": "catalog:",
+        "react-dom": "catalog:",
+        "react-native": "catalog:",
+        "react-native-web": "catalog:",
+        "tailwindcss": "catalog:",
+        "uniwind": "workspace:*",
+      },
+      "devDependencies": {
+        "@babel/core": "7.29.7",
+        "@types/react": "catalog:",
+        "babel-plugin-module-resolver": "5.0.3",
+        "typescript": "catalog:",
+      },
+    },
+    "apps/module-federation/eager-remote": {
+      "name": "uniwind-module-federation-eager-remote",
+      "version": "1.0.0",
+      "dependencies": {
+        "@expo/metro-runtime": "catalog:",
+        "@module-federation/metro": "catalog:",
+        "@module-federation/runtime": "catalog:",
+        "expo": "catalog:",
+        "react": "catalog:",
+        "react-dom": "catalog:",
+        "react-native": "catalog:",
+        "react-native-web": "catalog:",
+        "tailwindcss": "catalog:",
+        "uniwind": "workspace:*",
+      },
+      "devDependencies": {
+        "@babel/core": "7.29.7",
+        "@types/react": "catalog:",
+        "babel-plugin-module-resolver": "5.0.3",
+        "typescript": "catalog:",
+      },
+    },
+    "apps/module-federation/eager-remote-host": {
+      "name": "uniwind-module-federation-eager-remote-host",
+      "version": "1.0.0",
+      "dependencies": {
+        "@expo/metro-runtime": "catalog:",
+        "@module-federation/metro": "catalog:",
+        "@module-federation/runtime": "catalog:",
+        "expo": "catalog:",
+        "react": "catalog:",
+        "react-dom": "catalog:",
+        "react-native": "catalog:",
+        "react-native-web": "catalog:",
+        "tailwindcss": "catalog:",
+        "uniwind": "workspace:*",
+      },
+      "devDependencies": {
+        "@babel/core": "7.29.7",
+        "@types/react": "catalog:",
+        "babel-plugin-module-resolver": "5.0.3",
+        "typescript": "catalog:",
       },
     },
     "apps/module-federation/host": {
       "name": "uniwind-module-federation-host",
       "version": "1.0.0",
       "dependencies": {
-        "@expo/metro-runtime": "58.0.15",
+        "@expo/metro-runtime": "catalog:",
         "@module-federation/metro": "catalog:",
         "@module-federation/runtime": "catalog:",
         "expo": "catalog:",
@@ -92,7 +159,7 @@
       "name": "uniwind-module-federation-remote-a",
       "version": "1.0.0",
       "dependencies": {
-        "@expo/metro-runtime": "58.0.15",
+        "@expo/metro-runtime": "catalog:",
         "@module-federation/metro": "catalog:",
         "@module-federation/runtime": "catalog:",
         "expo": "catalog:",
@@ -114,7 +181,7 @@
       "name": "uniwind-module-federation-remote-b",
       "version": "1.0.0",
       "dependencies": {
-        "@expo/metro-runtime": "58.0.15",
+        "@expo/metro-runtime": "catalog:",
         "@module-federation/metro": "catalog:",
         "@module-federation/runtime": "catalog:",
         "expo": "catalog:",
@@ -157,7 +224,7 @@
     },
     "packages/uniwind": {
       "name": "uniwind",
-      "version": "1.13.0",
+      "version": "1.13.0-mf.0",
       "bin": {
         "uniwind": "./dist/cli/index.mjs",
       },
@@ -184,7 +251,7 @@
         "git-cliff": "2.14.2",
         "jest": "30.5.2",
         "jsdom": "30.1.1",
-        "metro": "0.87.1",
+        "metro": "catalog:",
         "prettier": "3.9.10",
         "react-native-web": "catalog:",
         "react-test-renderer": "19.3.0",
@@ -212,13 +279,18 @@
   "trustedDependencies": [
     "@tailwindcss/oxide",
   ],
+  "patchedDependencies": {
+    "@module-federation/metro@2.9.0": "patches/@module-federation%2Fmetro@2.9.0.patch",
+  },
   "catalog": {
-    "@module-federation/metro": "2.8.0",
-    "@module-federation/runtime": "2.8.0",
+    "@expo/metro-runtime": "58.0.15",
+    "@module-federation/metro": "2.9.0",
+    "@module-federation/runtime": "2.9.0",
     "@types/bun": "1.4.4",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "expo": "58.0.19",
+    "metro": "0.87.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "0.88.0",
@@ -768,21 +840,21 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@module-federation/dts-plugin": ["@module-federation/dts-plugin@2.8.0", "", { "dependencies": { "@module-federation/error-codes": "2.8.0", "@module-federation/managers": "2.8.0", "@module-federation/sdk": "2.8.0", "@module-federation/third-party-dts-extractor": "2.8.0", "adm-zip": "0.5.10", "isomorphic-ws": "5.0.0", "undici": "7.28.0", "ws": "8.21.0" }, "peerDependencies": { "typescript": "^4.9.0 || ^5.0.0 || ^6.0.0 || ^7.0.0", "vue-tsc": ">=1.0.24" }, "optionalPeers": ["vue-tsc"] }, "sha512-defjq4jOWMEfeejezPWLP5sc8kw0O6FqTT7/E5rbZPEVyjB1A0U3ynhW6GDE5/6hk9/TzdbWS+fBNi4MqUOY6Q=="],
+    "@module-federation/dts-plugin": ["@module-federation/dts-plugin@2.9.0", "", { "dependencies": { "@module-federation/error-codes": "2.9.0", "@module-federation/managers": "2.9.0", "@module-federation/sdk": "2.9.0", "@module-federation/third-party-dts-extractor": "2.9.0", "adm-zip": "0.6.0", "isomorphic-ws": "5.0.0", "undici": "7.29.0", "ws": "8.21.0" }, "peerDependencies": { "typescript": "^4.9.0 || ^5.0.0 || ^6.0.0 || ^7.0.0", "vue-tsc": ">=1.0.24" }, "optionalPeers": ["vue-tsc"] }, "sha512-uMGqEG/p9odG2BVr7WRbBe2OgrvzBd3LPzcp5WP+bm3djBdUJ4PZ3ozqKp6qpy+NFnlh6vnM815Xn6AXkKy1Vw=="],
 
-    "@module-federation/error-codes": ["@module-federation/error-codes@2.8.0", "", {}, "sha512-Gaog9904EmxYOQV0hli3XQ7jXeFaADfh5bnBtTCtbZ37Qd/Sz9kQfd+gYQRyIj7RGmkv9DPiN/SsmrTMrTymKw=="],
+    "@module-federation/error-codes": ["@module-federation/error-codes@2.9.0", "", {}, "sha512-IGpd+VRlji3NyGOGGTsk7YEmPRKcDoBK4YHqIuP+OQwyb2YhHCUHO2vW9RXeQxCuKwi+c6xkTweRYG+Umy+0Zw=="],
 
-    "@module-federation/managers": ["@module-federation/managers@2.8.0", "", { "dependencies": { "@module-federation/sdk": "2.8.0" } }, "sha512-SnVBCwmi962WGg6hLFElxZUCnrRJdR6glE2ZKPBY/iK07AHUN2ZxuaBCBsVzyws+xLZGHZxBHmVstijTh8dSUA=="],
+    "@module-federation/managers": ["@module-federation/managers@2.9.0", "", { "dependencies": { "@module-federation/sdk": "2.9.0" } }, "sha512-8KhB2PF4g+M0hGaethU1H4GVWabLn5sF5TvnM6VxgAcDL4TfLY8aC/YobAXHG/SV0jpU5lsGe6s6xy6ccV0MQw=="],
 
-    "@module-federation/metro": ["@module-federation/metro@2.8.0", "", { "dependencies": { "@expo/metro-runtime": "^5.0.4", "@module-federation/dts-plugin": "2.8.0", "@module-federation/runtime": "2.8.0", "@module-federation/sdk": "2.8.0" }, "peerDependencies": { "@babel/types": "^7.25.0", "metro": "^0.82.1", "metro-config": "^0.82.1", "metro-file-map": "^0.82.1", "metro-resolver": "^0.82.1", "metro-source-map": "^0.82.1", "react": ">=19.0.0", "react-native": ">=0.79.0" }, "optionalPeers": ["react", "react-native"] }, "sha512-yTCXgYWpaId3PlkzKLSS8lLVLO8Km9Kra/hnh4m1hbi7/Z0AXkd9PQWbpKdPHb545468RRMDUjFDLsVbYVc0eg=="],
+    "@module-federation/metro": ["@module-federation/metro@2.9.0", "", { "dependencies": { "@expo/metro-runtime": "^5.0.4", "@module-federation/dts-plugin": "2.9.0", "@module-federation/runtime": "2.9.0", "@module-federation/sdk": "2.9.0" }, "peerDependencies": { "@babel/types": "^7.25.0", "metro": "^0.82.1", "metro-config": "^0.82.1", "metro-file-map": "^0.82.1", "metro-resolver": "^0.82.1", "metro-source-map": "^0.82.1", "react": ">=19.0.0", "react-native": ">=0.79.0" }, "optionalPeers": ["react", "react-native"] }, "sha512-IkTbg5eNaEfl+pTFxu9d0JUySmPRGByMQCVmZ2ivI/J/ivHYGYM2KwNQR1iI2pJr6zPHSLFA45fozRnFjvk9ww=="],
 
-    "@module-federation/runtime": ["@module-federation/runtime@2.8.0", "", { "dependencies": { "@module-federation/error-codes": "2.8.0", "@module-federation/runtime-core": "2.8.0", "@module-federation/sdk": "2.8.0" } }, "sha512-cGtUBQ1/TVy7KrXy6xPgy3FEmOGyIYkBA2T4iGH3ZH5PNPPTmqN9jF2AfneTSOj0RtBr7Pxq3CUt81E/UCvK1A=="],
+    "@module-federation/runtime": ["@module-federation/runtime@2.9.0", "", { "dependencies": { "@module-federation/error-codes": "2.9.0", "@module-federation/runtime-core": "2.9.0", "@module-federation/sdk": "2.9.0" } }, "sha512-3cyAav0hWP+dNvB7qrcK9CKxQn+JvkbRvLtZz3zS2g0EyxtDFDjgbHY0Afcf7oHf8IHhKeEdzb/3Kjr1Pjmr7A=="],
 
-    "@module-federation/runtime-core": ["@module-federation/runtime-core@2.8.0", "", { "dependencies": { "@module-federation/error-codes": "2.8.0", "@module-federation/sdk": "2.8.0" } }, "sha512-Tf98+epGGiPSHqmQHuXa2uXZMMvjGf1IqJDR1/FpXfmobv5ECN0mGZCjUHGNSyxvoDyXKIkKwJu7IwEoh0ouQA=="],
+    "@module-federation/runtime-core": ["@module-federation/runtime-core@2.9.0", "", { "dependencies": { "@module-federation/error-codes": "2.9.0", "@module-federation/sdk": "2.9.0" } }, "sha512-dLykRYfpbEJBTdk2NlbNoVVTB196O3qujawTBguLABJkPCWETJNk60NR1yZO34eI+DTH+eGwHU3m7FddAWnbnw=="],
 
-    "@module-federation/sdk": ["@module-federation/sdk@2.8.0", "", {}, "sha512-yBP+9+0Z8nlvKEXAZS3AsQVy7bFbZf8eMivGk4q4ZdwG3TsLMlsPjb1dQb2i7gcAG6ux9y2LWLkj/0LVk74cnQ=="],
+    "@module-federation/sdk": ["@module-federation/sdk@2.9.0", "", {}, "sha512-IMjObgBGQTXd33jTTCYcxvz8iOQGLsZ2QIPOj90rDxuBtJsN4WJwYyXqligrhY/e5p/BipUPdbIgKmWL7zFhTw=="],
 
-    "@module-federation/third-party-dts-extractor": ["@module-federation/third-party-dts-extractor@2.8.0", "", {}, "sha512-nAMlr74OKIylkfRwlunOhytQbmsgb3gCqdXWnPQhG+ZtqWXGELLfMT4a1Q1ht3cS+sRpWj2SZRqK2M7GadI6tA=="],
+    "@module-federation/third-party-dts-extractor": ["@module-federation/third-party-dts-extractor@2.9.0", "", {}, "sha512-R1Xuqnqzw6wQxWV3yU9fX1FydXAeZF2TNVFAVo1N1oLBA2j5y7aUO/Fc3VSNgd9/gxMzJgTVBdA+nMiD2SFCgg=="],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.2.4", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1 || ^2.0.0-alpha.4", "@emnapi/runtime": "^1.7.1 || ^2.0.0-alpha.4" } }, "sha512-AJxoUD2/15ESHbvpcyjU274nsAPLuOtPHCk0vKJM5pj//Fg/B1FXNWjPnXTT9PymCYYiHo4zPj0ZomXBKhoy7g=="],
 
@@ -1240,7 +1312,7 @@
 
     "acorn": ["acorn@8.15.0", "", { "bin": { "acorn": "bin/acorn" } }, "sha512-NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg=="],
 
-    "adm-zip": ["adm-zip@0.5.10", "", {}, "sha512-x0HvcHqVJNTPk/Bw8JbLWlWoo6Wwnsug0fnYYro1HBrjxZ3G7/AZk7Ahv8JwDe1uIcz8eBqvu86FuF1POiG7vQ=="],
+    "adm-zip": ["adm-zip@0.6.0", "", {}, "sha512-XleryMhbuksdKtofnWZ9Sk+4CUTbms4Mb/EU32SZwToAyZ5RgVos/ki8n+yr0LWHOGKuakbXTuuYNHLQjhddgg=="],
 
     "agent-base": ["agent-base@9.0.0", "", {}, "sha512-TQf59BsZnytt8GdJKLPfUZ54g/iaUL2OWDSFCCvMOhsHduDQxO8xC4PNeyIkVcA5KwL2phPSv0douC0fgWzmnA=="],
 
@@ -2574,6 +2646,12 @@
 
     "uniwind-expo-example": ["uniwind-expo-example@workspace:apps/expo-example"],
 
+    "uniwind-module-federation-eager-host": ["uniwind-module-federation-eager-host@workspace:apps/module-federation/eager-host"],
+
+    "uniwind-module-federation-eager-remote": ["uniwind-module-federation-eager-remote@workspace:apps/module-federation/eager-remote"],
+
+    "uniwind-module-federation-eager-remote-host": ["uniwind-module-federation-eager-remote-host@workspace:apps/module-federation/eager-remote-host"],
+
     "uniwind-module-federation-example": ["uniwind-module-federation-example@workspace:apps/module-federation"],
 
     "uniwind-module-federation-host": ["uniwind-module-federation-host@workspace:apps/module-federation/host"],
@@ -2908,7 +2986,7 @@
 
     "@jridgewell/trace-mapping/@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
-    "@module-federation/dts-plugin/undici": ["undici@7.28.0", "", {}, "sha512-cRZYrTDwWznlnRiPjggAGxZXanty6M8RV1ff8Wm4LWXBp7/IG8v5DnOm74DtUBp9OONpK75YlPnIjQqX0dBDtA=="],
+    "@module-federation/dts-plugin/undici": ["undici@7.29.0", "", {}, "sha512-IDxfleLmmbSskfWSUATiN1nfn2rDuvnMOqb5CWR92iIfojA0Ud+ulOAAEQ57LPr9rWmsreUyf5lwyao+7GNNVw=="],
 
     "@module-federation/dts-plugin/ws": ["ws@8.21.0", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g=="],
 

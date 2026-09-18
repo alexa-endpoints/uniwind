@@ -9,6 +9,13 @@ withUniwindConfig(metroConfig, {
         federation: {
             role: 'host',
             sharedClassNames: ['bg-red-500'],
+            inlinedRemotes: [
+                {
+                    id: 'remote-a',
+                    cssEntryFile: '../remote-a/global.css',
+                    sharedClassNames: ['bg-red-500'],
+                },
+            ],
         },
     },
 })

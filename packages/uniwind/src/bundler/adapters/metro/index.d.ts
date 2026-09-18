@@ -8,6 +8,14 @@ type UniwindFederationConfig =
     | {
         role: 'host'
         sharedClassNames?: ReadonlyArray<string>
+        /**
+         * Remote stylesheets compiled into the host bundle and merged at runtime under their remote id.
+         */
+        inlinedRemotes?: ReadonlyArray<{
+            id: string
+            cssEntryFile: string
+            sharedClassNames?: ReadonlyArray<string>
+        }>
     }
     | {
         role: 'remote'
