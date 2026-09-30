@@ -105,7 +105,7 @@ Configuration shape:
 - `cssEntryFile`: required CSS entry path, resolved from `process.cwd()`.
 - `extraThemes`: optional named themes added to default `light` and `dark`.
 - `dtsFile`: optional generated declaration file path, default `uniwind-types.d.ts`.
-- Metro-only `experimental.federation`: optional experimental host/remote build contract. Hosts may declare exact shared class candidates that are force-generated into the base build; remotes use a stable owner ID and exclude those exact candidates from their scanned delta. See the [local Module Federation demo](apps/module-federation/README.md).
+- Metro-only `experimental.federation`: optional experimental host/remote build contract. Hosts may declare exact shared class candidates that are force-generated into the base build and may list inlined remote stylesheets with an owner ID, CSS entry file, and optional shared candidates. Remotes use a stable owner ID and exclude exact shared candidates from their scanned delta. See the [local Module Federation demo](apps/module-federation/README.md).
 - Metro-only `experimental.optimizeClasslessComponents`: optional native compile-time optimization for statically classless built-in React Native elements, default `false`.
 - Metro-only `polyfills.rem`: custom rem base, default `16`.
 - Metro-only `debug` and `isTV` flags exist in types.
@@ -124,13 +124,14 @@ Metro integration:
 
 - `withUniwindConfig(config, uniwindConfig)` patches Metro graph support for uncached modules.
 - Metro adds `css` as source extension and removes it from asset extensions.
-- Metro transformer handles the configured CSS entry file specially. In development, native entries declare imported local CSS files as Metro dependencies, including nested imports and workspace files resolved outside `node_modules`, so token-only edits trigger recompilation. Dependencies are collected afresh on each compile. Files in Uniwind's own package directory are never declared: it holds the stylesheet the transform writes, so declaring it would rebuild the entry after the transform's own write, and the Metro servers of projects sharing one install (a federation host and its remotes) after each other's.
-- Non-entry native CSS is an empty module in plain Metro; Expo keeps its own CSS handling. Web CSS handling is unchanged.
+- Metro transformer handles the configured host CSS entry file and any host-declared inlined remote CSS entry files specially. In development, native entries declare imported local CSS files as Metro dependencies, including nested imports and workspace files resolved outside `node_modules`, so token-only edits trigger recompilation. Dependencies are collected afresh on each compile. Files in Uniwind's own package directory are never declared: it holds the stylesheet the transform writes, so declaring it would rebuild the entry after the transform's own write, and the Metro servers of projects sharing one install (a federation host and its remotes) after each other's.
+- Other native CSS is an empty module in plain Metro; Expo keeps its own CSS handling. Web CSS handling is unchanged.
 - `experimental.optimizeClasslessComponents` (off by default) compiles classless native elements
   to raw React Native components; styled or uncertain references keep existing wrappers.
 - Metro transformer worker selection is lazy, cached per Expo/non-Expo config type, and follows Expo transformer paths or Expo-specific config markers.
 - Host native platform CSS transforms into a JS module that calls `Uniwind.__reinit(...)` with a fingerprint of the generated styles and themes. During development, the native runtime skips reinitialization when that fingerprint is unchanged.
 - Federated remote native CSS transforms into an owner-keyed merge registration, declaring its imported stylesheets in development like a host entry.
+- Inlined remote stylesheets compile with remote federation semantics inside the host graph, and in development declare their own imported stylesheets. Artifact generation remains tied to the host stylesheet so concurrent Metro workers write identical shared CSS and typings.
 - Web platform CSS transforms into CSS plus web runtime setup.
 - Resolver swaps React Native component imports to Uniwind-aware implementations where needed.
 - On web, imports originating inside React Native Web keep their original components, preventing cycles through Uniwind wrappers. Animated component imports still receive wrappers, matching the native resolver, and the internal `createOrderedCSSStyleSheet` override remains active. Application and third-party component imports still resolve to styled wrappers.
@@ -201,6 +202,7 @@ Web components:
 - Shared class candidates are an explicit build-time contract. Host builds include them, remote scanner candidates exclude them, and remote source uses them unprefixed so they resolve from the host on web and native.
 - `@source inline(...)` candidates are compiled by Tailwind outside Uniwind's scanner candidate set. Remote authors must not reintroduce shared candidates through inline sources.
 - Native deltas merge by owner; existing keys win, same-owner registration replaces, and non-federated `__reinit` behavior is unchanged.
+- Inlined remote entries inherit the host theme list, compile as owner-keyed remote deltas, and do not replace the host-derived shared `uniwind.css` artifact.
 - Native registrations must use the same ordered theme list. A remote may register before the host; the first remote establishes the provisional public theme list, and host initialization validates those themes before changing config or store state.
 
 ## Testing And Quality Gates
