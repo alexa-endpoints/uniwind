@@ -51,6 +51,24 @@ export const shouldTransformClasslessComponents = (
     && options.platform !== Platform.Web
     && data.includes('react-native')
 
+const findInlinedRemote = (
+    config: UniwindMetroConfig,
+    projectRoot: string,
+    filePath: string,
+) => {
+    const federation = config.experimental?.federation
+
+    if (federation?.role !== 'host') {
+        return undefined
+    }
+
+    const modulePath = path.join(projectRoot, filePath)
+
+    return federation.inlinedRemotes?.find(
+        remote => path.resolve(process.cwd(), remote.cssEntryFile) === modulePath,
+    )
+}
+
 export const transform = async (
     config: JsTransformerConfig & {
         uniwind: UniwindMetroConfig
@@ -61,7 +79,12 @@ export const transform = async (
     options: JsTransformOptions,
 ) => {
     const worker = getTransformWorker(config.uniwind.isExpoProject)
-    const isCss = options.type !== 'asset' && path.join(process.cwd(), config.uniwind.cssEntryFile) === path.join(projectRoot, filePath)
+    const inlinedRemote = options.type !== 'asset'
+        ? findInlinedRemote(config.uniwind, projectRoot, filePath)
+        : undefined
+    const isCss = inlinedRemote !== undefined
+        || options.type !== 'asset'
+            && path.join(process.cwd(), config.uniwind.cssEntryFile) === path.join(projectRoot, filePath)
 
     if (filePath.endsWith('/components/web/metro-injected.js')) {
         const bundlerConfig = UniwindBundlerConfig.fromMetroConfig(config.uniwind, Platform.Web)
@@ -105,8 +128,32 @@ export const transform = async (
         )
     }
 
-    const bundlerConfig = UniwindBundlerConfig.fromMetroConfig(config.uniwind, options.platform)
-    await bundlerConfig.generateArtifacts(cssArtifactPath)
+    const baseBundlerConfig = UniwindBundlerConfig.fromMetroConfig(config.uniwind, options.platform)
+
+    // For an inlined remote, artifact generation stays on the host entry so
+    // concurrent workers compiling either stylesheet write identical bytes.
+    await baseBundlerConfig.generateArtifacts(cssArtifactPath)
+
+    const bundlerConfig = inlinedRemote === undefined
+        ? baseBundlerConfig
+        : UniwindBundlerConfig.fromMetroConfig(
+            {
+                ...config.uniwind,
+                cssEntryFile: path.relative(
+                    process.cwd(),
+                    path.resolve(process.cwd(), inlinedRemote.cssEntryFile),
+                ),
+                experimental: {
+                    ...config.uniwind.experimental,
+                    federation: {
+                        role: 'remote',
+                        id: inlinedRemote.id,
+                        sharedClassNames: inlinedRemote.sharedClassNames,
+                    },
+                },
+            },
+            options.platform,
+        )
     const virtualCode = await compileCSS(bundlerConfig)
     const isWeb = bundlerConfig.platform === Platform.Web
     const federation = bundlerConfig.federation
