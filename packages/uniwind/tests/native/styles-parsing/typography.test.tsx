@@ -113,6 +113,8 @@ describe('Typography', () => {
                 <View className="text-center" testID="text-center" />
                 <View className="text-right" testID="text-right" />
                 <View className="text-justify" testID="text-justify" />
+                <View className="text-start" testID="text-start" />
+                <View className="text-end" testID="text-end" />
             </React.Fragment>,
         )
 
@@ -120,6 +122,30 @@ describe('Typography', () => {
         expect(getStylesFromId('text-center').textAlign).toBe('center')
         expect(getStylesFromId('text-right').textAlign).toBe('right')
         expect(getStylesFromId('text-justify').textAlign).toBe('justify')
+        expect(getStylesFromId('text-start').textAlign).toBe('start')
+        expect(getStylesFromId('text-end').textAlign).toBe('end')
+    })
+
+    test('Font Variation Settings', () => {
+        const { getStylesFromId } = renderUniwind(
+            <React.Fragment>
+                <View className="[font-variation-settings:'wght'_650]" testID="single" />
+                <View className="[font-variation-settings:'wght'_650,'slnt'_-10]" testID="multiple" />
+                <View className="[font-variation-settings:normal]" testID="normal" />
+                <View className="[--ab:'wght'_900] [font-variation-settings:var(--ab)]" testID="short-var" />
+                <View className="[--axis:'wght'_900,'wdth'_25] [font-variation-settings:var(--axis)]" testID="axis-var" />
+                <View className="[--w:650] [font-variation-settings:'wght'_var(--w)]" testID="value-var" />
+                <View className="[--ab:650] [font-variation-settings:'wght'_var(--ab)]" testID="short-value-var" />
+            </React.Fragment>,
+        )
+
+        expect(getStylesFromId('single').fontVariationSettings).toBe('\'wght\' 650')
+        expect(getStylesFromId('multiple').fontVariationSettings).toBe('\'wght\' 650, \'slnt\' -10')
+        expect(getStylesFromId('normal').fontVariationSettings).toBe('normal')
+        expect(getStylesFromId('short-var').fontVariationSettings).toBe('\'wght\' 900')
+        expect(getStylesFromId('axis-var').fontVariationSettings).toBe('\'wght\' 900, \'wdth\' 25')
+        expect(getStylesFromId('value-var').fontVariationSettings).toBe('\'wght\' 650')
+        expect(getStylesFromId('short-value-var').fontVariationSettings).toBe('\'wght\' 650')
     })
 
     test('Font Style & Transform', () => {
