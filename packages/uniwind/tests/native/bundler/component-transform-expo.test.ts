@@ -105,12 +105,12 @@ const fixtures = [
         source: `
             import * as React2 from "react";
             import {
-                Text as Text$1,
+                Image as Image$1,
                 View as View$1,
             } from "react-native";
 
             var View = View$1;
-            var Text = Text$1;
+            var Image = Image$1;
 
             export function Fixture({ nested }) {
                 return React2.createElement(
@@ -119,13 +119,13 @@ const fixtures = [
                     React2.createElement(
                         View,
                         null,
-                        React2.createElement(Text, null, "First"),
+                        React2.createElement(Image, null, "First"),
                     ),
                     nested
                         && React2.createElement(
                             View$1,
                             null,
-                            React2.createElement(Text$1, null, "Second"),
+                            React2.createElement(Image$1, null, "Second"),
                         ),
                 );
             }
@@ -143,11 +143,11 @@ const fixtures = [
                 return React.createElement(
                     ReactNative.View,
                     null,
-                    React.createElement(ReactNative.Text, null, "First"),
+                    React.createElement(ReactNative.Image, null, "First"),
                     React.createElement(
                         ReactNative.View,
                         null,
-                        React.createElement(ReactNative.Text, null, "Second"),
+                        React.createElement(ReactNative.Image, null, "Second"),
                     ),
                 );
             }
@@ -177,7 +177,7 @@ describe.each(upstreamTransformers)(
 
                         expect(code).not.toMatch(malformedRawComponentPattern)
                         expect(countRawComponentReferences(code, 'View')).toBe(2)
-                        expect(countRawComponentReferences(code, 'Text')).toBe(2)
+                        expect(countRawComponentReferences(code, 'Image')).toBe(2)
                         if (hasStyledAlias) {
                             expect(code).toMatch(
                                 /createElement\(\s*View\s*,\s*\{\s*className:/,
