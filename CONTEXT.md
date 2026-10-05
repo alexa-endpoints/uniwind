@@ -81,7 +81,7 @@ Web runtime:
 
 - Web keeps styles in CSS and passes `{ $$css: true, tailwind: className }` through RNW style arrays.
 - `getWebStyles` uses a hidden DOM element to compute style values when a JS value is needed, such as color extraction or `useResolveClassNames`.
-- `CSSListener` tracks active CSS rules and media queries, then notifies subscribers when class-dependent media rules change. After scanning newly discovered stylesheets, it emits a variables notification so JS-resolved styles refresh when CSS arrives after module initialization, including Metro web development startup.
+- `CSSListener` tracks active CSS rules and media queries, then notifies subscribers when class-dependent media rules change. After scanning newly discovered stylesheets, it emits a variables notification so JS-resolved styles refresh when CSS arrives after module initialization, including Metro web development startup. Deferred scans safely return if `document` has been removed before they run, such as during test environment teardown.
 - `ScopedTheme` renders a `div` with the theme class and `display: contents` on web.
 - `LayoutDirection` renders a contents-style wrapper with `direction`/`dir` semantics so RTL/LTR variants can be scoped to a subtree.
 - `ScopedVariables` renders a `display: contents` wrapper and sets its variables as inline custom properties on that wrapper, so the real DOM cascade resolves `var(--name)` to the scoped value for every descendant (numbers become px). During JS reads (`getWebVariable` / `useResolveClassNames`) it also applies the variables to the hidden `dummyParent`, then clears them.
@@ -202,6 +202,8 @@ Package scripts:
 - `bun run test:e2e`: Playwright e2e tests.
 
 Root scripts use Turbo for monorepo-wide build, typecheck, lint, test, format, and circular checks.
+
+The release workflow runs the build, type checks, lint, formatting, circular dependency checks, and all test suites before releasing. It uses release-it to bump the version and generate the changelog, then follows release-it's default order: publish to npm, push the release commit/tag, and create the GitHub release. Husky is disabled for the release commit because the workflow has already run the checks. The package's release-it configuration controls npm provenance, public access, and prerelease tags. Dry runs use release-it's `--dry-run`, and pending release issues are closed only after the full release succeeds.
 
 Testing layout:
 
