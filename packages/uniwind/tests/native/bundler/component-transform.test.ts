@@ -1,8 +1,9 @@
 import { transformSync, traverse } from '@babel/core'
 import { componentTransform } from '../../../src/bundler/adapters/metro/component-transform'
 import {
-    NATIVE_COMPONENT_NAMES,
+    DEFAULT_FONT_COMPONENT_NAMES,
     type NativeComponentName,
+    OPTIMIZABLE_COMPONENT_NAMES,
     RAW_COMPONENTS_MODULE,
 } from '../../../src/bundler/adapters/metro/constants'
 import * as rawComponents from '../../../src/bundler/adapters/metro/raw-components'
@@ -95,9 +96,9 @@ const runTransform = (source: string) => {
 
 const transform = (source: string) => runTransform(source).code
 
-describe.each(NATIVE_COMPONENT_NAMES)('%s compile-time dispatch', componentName => {
+describe.each(OPTIMIZABLE_COMPONENT_NAMES)('%s compile-time dispatch', componentName => {
     test('is exported by the private raw-component module', () => {
-        expect(rawComponents[componentName]).toBeDefined()
+        expect((rawComponents as Record<string, unknown>)[componentName]).toBeDefined()
     })
 
     test('rewrites statically classless JSX to the raw component', () => {
@@ -138,23 +139,40 @@ describe.each(NATIVE_COMPONENT_NAMES)('%s compile-time dispatch', componentName 
     })
 })
 
+describe.each(DEFAULT_FONT_COMPONENT_NAMES)('%s keeps the wrapper when classless', componentName => {
+    test('is not exported by the private raw-component module', () => {
+        expect((rawComponents as Record<string, unknown>)[componentName]).toBeUndefined()
+    })
+
+    test('keeps statically classless JSX on the Uniwind wrapper path', () => {
+        const code = transform(`
+            import { ${componentName} } from 'react-native'
+
+            export const Component = () => <${componentName} testID="component" />
+        `)
+
+        expect(code).not.toContain(RAW_COMPONENTS_MODULE)
+        expect(code).toContain(`<${componentName} testID="component" />`)
+    })
+})
+
 test('uses raw components only for provably classless JSX', () => {
     const code = transform(`
-        import { Text, View } from 'react-native'
+        import { Image, View } from 'react-native'
 
         export const Component = () => (
             <View style={{ flex: 1 }}>
-                <Text className="font-bold">Styled</Text>
-                <Text style={{ color: 'black' }}>Raw</Text>
+                <Image className="rounded" source={source} />
+                <Image style={{ width: 10 }} source={source} />
             </View>
         )
     `)
 
     expect(code).toContain(`from "${RAW_COMPONENTS_MODULE}"`)
-    expect(code).toMatch(/import \{ View as _RawView, Text as _RawText \}/)
+    expect(code).toMatch(/import \{ View as _RawView, Image as _RawImage \}/)
     expect(code).toContain('<_RawView')
-    expect(code).toContain('<Text className="font-bold">')
-    expect(code).toContain('<_RawText style=')
+    expect(code).toContain('<Image className="rounded"')
+    expect(code).toContain('<_RawImage style=')
 })
 
 test('keeps elements with spreads on the wrapped component path', () => {
@@ -182,31 +200,31 @@ test('supports namespace imports and constant aliases', () => {
 
         export const Component = () => (
             <>
-                <RN.Text />
+                <RN.Switch />
                 <Alias />
             </>
         )
     `)
 
-    expect(code).toMatch(/import \{ Text as _RawText, View as _RawView \}/)
-    expect(code).toContain('<_RawText />')
+    expect(code).toMatch(/import \{ Switch as _RawSwitch, View as _RawView \}/)
+    expect(code).toContain('<_RawSwitch />')
     expect(code).toContain('<_RawView />')
 })
 
 test('supports CommonJS destructuring', () => {
     const code = transform(`
-        const { Text: Label, View } = require('react-native')
+        const { Switch: Toggle, View } = require('react-native')
 
         export const Component = () => (
             <View>
-                <Label />
+                <Toggle />
             </View>
         )
     `)
 
-    expect(code).toMatch(/import \{ View as _RawView, Text as _RawText \}/)
+    expect(code).toMatch(/import \{ View as _RawView, Switch as _RawSwitch \}/)
     expect(code).toContain('<_RawView>')
-    expect(code).toContain('<_RawText />')
+    expect(code).toContain('<_RawSwitch />')
 })
 
 test('optimizes only createElement calls with static classless props', () => {

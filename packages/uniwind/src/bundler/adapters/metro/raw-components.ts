@@ -13,8 +13,6 @@ export {
     ScrollView,
     SectionList,
     Switch,
-    Text,
-    TextInput,
     TouchableHighlight,
     TouchableNativeFeedback,
     TouchableOpacity,
