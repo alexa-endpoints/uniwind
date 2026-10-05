@@ -1,4 +1,26 @@
-## What's Changed in 1.12.1
+## What's Changed in 1.12.2
+
+
+
+### 🚀 Features
+* feat: migrate unbuild to tsdown by @Brentlok in [#712](https://github.com/uni-stack/uniwind/pull/712)
+
+
+### 🐛 Bug Fixes
+* fix: notify web listeners when new styles loaded by @Brentlok in [#713](https://github.com/uni-stack/uniwind/pull/713)
+* fix: reset root parser state before sibling rules by @eliotgevers in [#710](https://github.com/uni-stack/uniwind/pull/710)
+* fix: InputAccessoryView circular dependency on web by @Brentlok in [#706](https://github.com/uni-stack/uniwind/pull/706)
+
+
+### 🏠 Chores
+* chore: update deps by @Brentlok in [#707](https://github.com/uni-stack/uniwind/pull/707)
+
+
+### 📦 Other
+* Revert "feat: migrate unbuild to tsdown" by @Brentlok in [#714](https://github.com/uni-stack/uniwind/pull/714)
+
+
+**Full Changelog**: https://github.com/uni-stack/uniwind/compare/v1.12.1...v1.12.2## What's Changed in 1.12.1
 
 
 
