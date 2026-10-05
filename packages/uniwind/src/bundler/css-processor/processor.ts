@@ -240,9 +240,12 @@ export class ProcessorBuilder {
         }
 
         if (rule.type === 'style') {
+            const previousRoot = this.declarationConfig.root
+
             rule.value.selectors.forEach(selector => {
                 const [maybeClassNameSelector] = selector
                 const newClassName = maybeClassNameSelector?.type === 'class' ? maybeClassNameSelector.name : undefined
+                this.declarationConfig.root = newClassName === undefined ? previousRoot : false
 
                 if (newClassName !== undefined) {
                     this.declarationConfig.className = newClassName
@@ -298,6 +301,7 @@ export class ProcessorBuilder {
                     }
                 })
             })
+            this.declarationConfig.root = previousRoot
 
             return
         }
