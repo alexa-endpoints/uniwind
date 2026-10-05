@@ -181,6 +181,7 @@ Native components:
 - Most components combine generated style before user style: `[generatedStyle, props.style]`, preserving user overrides.
 - Stateful components such as `Pressable` pass `pressed`, `focused`, and `disabled` state into style resolution.
 - Accent-capable components use `accentColor` extraction helpers where needed.
+- Root `Text` and `TextInput` start from the theme's `--default-font-family`, the token Tailwind's preflight puts on the web root, when it names a single family; React Native cannot resolve a fallback list, so the platform default stays. Nested text inherits from its parent, and `className` and `style` still override. Statically classless `Text` and `TextInput` from `experimental.optimizeClasslessComponents` keep this default.
 
 Web components:
 
@@ -188,6 +189,7 @@ Web components:
 - Web wrappers map `className` to RNW CSS style markers through `toRNWClassName`.
 - Web wrappers pass generated `dataSet` so data attribute variants can match.
 - `InputAccessoryView` wraps React Native Web's export when available (0.21.3+) and uses `View` with older React Native Web versions, while supporting Uniwind classes and data attributes.
+- React Native Web resets root text and inputs to `font: 14px System`, so web `Text` and `TextInput` add a reset-group rule for `font-family: var(--default-font-family)`; Uniwind's ordered stylesheet keeps it in `@layer rnw` below Tailwind's layers. Uniwind `Text` marks its subtree so nested text keeps inheriting.
 
 `withUniwind`:
 

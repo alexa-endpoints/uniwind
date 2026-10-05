@@ -13,8 +13,6 @@ export {
     ScrollView,
     SectionList,
     Switch,
-    Text,
-    TextInput,
     TouchableHighlight,
     TouchableNativeFeedback,
     TouchableOpacity,
@@ -22,3 +20,4 @@ export {
     View,
     VirtualizedList,
 } from 'react-native'
+export { Text, TextInput } from '../../../components/native/classless'
