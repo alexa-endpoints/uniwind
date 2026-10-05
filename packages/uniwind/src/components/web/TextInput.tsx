@@ -1,6 +1,7 @@
 import type { TextInputProps } from 'react-native'
 import { TextInput as RNTextInput } from 'react-native'
 import { copyComponentProperties } from '../utils'
+import { defaultFontFamily } from './defaultFontFamily'
 import { generateDataSet } from './generateDataSet'
 import { toRNWClassName } from './rnw'
 import { useUniwindAccent } from './useUniwindAccent'
@@ -11,7 +12,7 @@ export const TextInput = copyComponentProperties(RNTextInput, (props: TextInputP
     return (
         <RNTextInput
             {...props}
-            style={[toRNWClassName(props.className), props.style]}
+            style={[defaultFontFamily, toRNWClassName(props.className), props.style]}
             placeholderTextColor={props.placeholderTextColor ?? placeholderTextColor}
             dataSet={generateDataSet(props)}
         />
