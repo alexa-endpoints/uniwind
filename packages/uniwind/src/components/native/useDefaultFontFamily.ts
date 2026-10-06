@@ -8,13 +8,15 @@ import { getVariableValue } from '../../hooks/useCSSVariable/getVariableValue'
 const DEFAULT_FONT_FAMILY = '--default-font-family'
 const dependencies = [StyleDependency.Theme, StyleDependency.Variables]
 const styles = new Map<string, { fontFamily: string }>()
+// A CSS-wide keyword names no family; React Native would look it up as one.
+const cssWideKeywords = new Set(['inherit', 'initial', 'revert', 'revert-layer', 'unset'])
 
 /**
  * Native text inherits nothing from the root, so root text and inputs start
  * from the theme's --default-font-family, the font Tailwind's preflight gives
- * the web root. React Native resolves one family name, so a fallback list
- * keeps the platform default. Nested text inherits from its parent, and
- * className and style still override.
+ * the web root. React Native resolves one family name, so a fallback list or a
+ * CSS-wide keyword keeps the platform default. Nested text inherits from its
+ * parent, and className and style still override.
  */
 export const useDefaultFontFamily = () => {
     'use no memo'
@@ -34,7 +36,12 @@ export const useDefaultFontFamily = () => {
 
     const fontFamily = getVariableValue(DEFAULT_FONT_FAMILY, uniwindContext)
 
-    if (typeof fontFamily !== 'string' || fontFamily === '' || fontFamily.includes(',')) {
+    if (
+        typeof fontFamily !== 'string'
+        || fontFamily === ''
+        || fontFamily.includes(',')
+        || cssWideKeywords.has(fontFamily.toLowerCase())
+    ) {
         return undefined
     }
 
