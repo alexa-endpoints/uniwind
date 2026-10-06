@@ -7,6 +7,7 @@ import { promisify } from 'node:util'
 import { transformWithOxc } from 'vite'
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import { buildCSS } from '../../../src/bundler/artifacts/css'
+import { DEFAULT_FONT_CSS } from '../../../src/bundler/artifacts/css/defaultFont'
 import { EXTRA_UTILITIES_CSS } from '../../../src/bundler/artifacts/css/extraUtilities'
 import { INSETS_CSS } from '../../../src/bundler/artifacts/css/insets'
 import { OVERWRITE_CSS } from '../../../src/bundler/artifacts/css/overwrite'
@@ -214,6 +215,7 @@ describe('buildCSS', () => {
             INSETS_CSS,
             OVERWRITE_CSS,
             EXTRA_UTILITIES_CSS,
+            DEFAULT_FONT_CSS,
             await generateCSSForThemes(THEMES, CSS_ENTRY_FILE),
         ].join('\n')
 
