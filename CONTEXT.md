@@ -35,7 +35,7 @@ Important paths:
 - `packages/uniwind/src/hoc`: `withUniwind` for custom components.
 - `packages/uniwind/src/bundler`: Metro/Vite adapters, Tailwind compilation, CSS processing, artifact generation.
 - `packages/uniwind/tests`: native, web, type, and e2e tests.
-- `packages/uniwind/uniwind.css`: package-level CSS artifact referenced by package `style` export.
+- `packages/uniwind/uniwind.css`: package-level CSS artifact referenced by package `style` export. It carries the custom variants, safe-area utilities, the `uniwind-default-font` base rule, and the generated theme variables; `src/bundler/artifacts/css` builds it.
 
 Public exports from `src/index.ts`:
 
@@ -179,7 +179,7 @@ Web components:
 - Web wrappers import from `react-native` as resolved by bundler aliases.
 - Web wrappers map `className` to RNW CSS style markers through `toRNWClassName`.
 - Web wrappers pass generated `dataSet` so data attribute variants can match.
-- React Native Web resets root text and inputs to `font: 14px System`, so web `Text` and `TextInput` add a reset-group rule for `font-family: var(--default-font-family, <RNW System stack>)`, so without the token they keep RNW's reset font. Uniwind's ordered stylesheet keeps it in `@layer rnw` below Tailwind's layers. RNW sorts each group's rules when it serializes the sheet for static rendering, so the rule's key starts with `uniwind` to sort after the `text` and `textinput` resets. Uniwind `Text` marks its subtree so nested text keeps inheriting.
+- React Native Web resets root text and inputs to `font: 14px System`, so web `Text` and `TextInput` carry the `uniwind-default-font` class that `uniwind.css` declares in `@layer base`: it beats RNW's `@layer rnw` reset and loses to font utilities by layer, which survives the rule re-sorting RNW applies when it serializes the sheet for static rendering. Without the token the rule falls back to RNW's System stack, so those apps keep the reset font. Uniwind `Text` marks its subtree so nested text keeps inheriting.
 
 ## Federated Style Contract
 
