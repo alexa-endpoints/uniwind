@@ -49,6 +49,25 @@ describe('Default font family', () => {
         expect(getStylesFromId('text').fontFamily).toBeUndefined()
     })
 
+    test('keeps the platform default for CSS-wide keywords', () => {
+        for (const keyword of ['initial', 'inherit', 'unset', 'revert', 'revert-layer', 'INITIAL']) {
+            useDefaults(keyword)
+
+            const { getStylesFromId, unmount } = renderUniwind(
+                <React.Fragment>
+                    <Text testID="text">Hello</Text>
+                    <RawText testID="raw">Hello</RawText>
+                    <TextInput testID="input" />
+                </React.Fragment>,
+            )
+
+            expect(getStylesFromId('text').fontFamily).toBeUndefined()
+            expect(getStylesFromId('raw')?.fontFamily).toBeUndefined()
+            expect(getStylesFromId('input').fontFamily).toBeUndefined()
+            unmount()
+        }
+    })
+
     test('starts root text and inputs from a single-family theme default', () => {
         useDefaults('Inter')
 
