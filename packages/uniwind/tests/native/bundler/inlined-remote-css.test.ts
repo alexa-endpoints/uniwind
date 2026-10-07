@@ -1,6 +1,6 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { transform } from '../../../src/bundler/adapters/metro/transformer'
+import { projectArtifactPath, transform } from '../../../src/bundler/adapters/metro/transformer'
 import { UniwindBundlerConfig } from '../../../src/bundler/config'
 
 const mockWorkerTransform = jest.fn(
@@ -75,8 +75,9 @@ describe('inlined remote CSS', () => {
 
         const artifactCSSPaths: string[] = []
         jest.spyOn(UniwindBundlerConfig.prototype, 'generateArtifacts').mockImplementation(
-            function(this: UniwindBundlerConfig) {
+            function(this: UniwindBundlerConfig, artifactPath: string) {
                 artifactCSSPaths.push(this.cssPath)
+                copyFileSync(path.resolve('uniwind.css'), artifactPath)
                 return Promise.resolve()
             },
         )
@@ -116,6 +117,7 @@ describe('inlined remote CSS', () => {
             expect(artifactCSSPaths).toEqual([hostCSSPath, hostCSSPath, hostCSSPath])
         } finally {
             rmSync(directory, { force: true, recursive: true })
+            rmSync(projectArtifactPath(hostCSSPath), { force: true })
         }
     })
 })

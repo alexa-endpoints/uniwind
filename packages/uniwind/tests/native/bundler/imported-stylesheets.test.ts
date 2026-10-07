@@ -1,5 +1,5 @@
 import type { JsTransformOptions } from 'metro-transform-worker'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { transform } from '../../../src/bundler/adapters/metro/transformer'
 import { UniwindBundlerConfig } from '../../../src/bundler/config'
@@ -24,16 +24,27 @@ jest.mock('/virtual/expo-transform-worker.js', () => ({
 }), { virtual: true })
 
 let directory = ''
+const artifactPaths = new Set<string>()
+
+// Stands in for artifact generation, which these tests don't exercise: the project's artifact is a
+// copy of the package stylesheet, followed by any extra CSS.
+const mockArtifacts = (extraCSS = '') =>
+    jest.spyOn(UniwindBundlerConfig.prototype, 'generateArtifacts').mockImplementation(async artifactPath => {
+        artifactPaths.add(artifactPath)
+        copyFileSync(path.resolve('uniwind.css'), artifactPath)
+        writeFileSync(artifactPath, `${readFileSync(artifactPath, 'utf-8')}\n${extraCSS}`)
+    })
 
 beforeEach(() => {
     directory = mkdtempSync(path.join(process.cwd(), '.tmp-imported-stylesheets-'))
     mockWorkerTransform.mockClear()
-    // Artifact generation writes into the package; these tests only read the entry's own imports.
-    jest.spyOn(UniwindBundlerConfig.prototype, 'generateArtifacts').mockResolvedValue()
+    mockArtifacts()
 })
 
 afterEach(() => {
     jest.restoreAllMocks()
+    artifactPaths.forEach(artifactPath => rmSync(artifactPath, { force: true }))
+    artifactPaths.clear()
     rmSync(directory, { force: true, recursive: true })
 })
 
@@ -140,6 +151,22 @@ describe('imported stylesheets', () => {
         expect(stylesheetRequires(host)).toEqual(NESTED_REQUIRES)
         expect(stylesheetRequires(remote)).toEqual(['./remote-tokens.css'])
         expect(remote).toContain('Uniwind.__mergeStyles("remote-a"')
+    })
+
+    test('the stylesheets the transform writes are never required', async () => {
+        const cssPath = createProject()
+
+        mockArtifacts('@theme { --color-artifact: #123456; }')
+        writeFiles({
+            'app/global.css': ['@import "tailwindcss";', '@import "uniwind";', '@import "./theme/tokens.css";'].join('\n'),
+            'app/App.tsx': `export const className = 'bg-artifact bg-brand'`,
+        })
+
+        const code = await transformEntry({ cssEntryFile: path.relative(process.cwd(), cssPath) })
+
+        // The entry compiled against the project's artifact, which Tailwind reported as an import.
+        expect(code).toContain('"className": "bg-artifact"')
+        expect(stylesheetRequires(code)).toEqual(['./theme/colors.css', './theme/tokens.css'])
     })
 
     test('production builds and web CSS require nothing', async () => {

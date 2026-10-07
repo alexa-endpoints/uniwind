@@ -6,3 +6,5 @@ dist
 .turbo
 .vscode
 .tmp-shared-class-names-*
+.artifacts
+packages/uniwind/src/bundler/uniwind.css
