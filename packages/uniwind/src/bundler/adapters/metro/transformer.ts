@@ -1,3 +1,4 @@
+import { writeFileAtomicSync } from '@/bundler/artifacts/writeFileAtomic'
 import { UniwindBundlerConfig } from '@/bundler/config'
 import { compileCSS } from '@/bundler/css-compiler'
 import type { UniwindMetroConfig } from '@/bundler/types'
@@ -13,14 +14,25 @@ import {
     UPSTREAM_BABEL_TRANSFORMER,
 } from './constants'
 
-const cssArtifactPath = path.resolve(__dirname, '../../uniwind.css')
+export const cssArtifactPath = path.resolve(__dirname, '../../uniwind.css')
+
+// Projects with different themes, such as a federation host and its remotes, can build at the
+// same time from one installed package. Each compiles against its own artifact rather than the
+// shared stylesheet another build may be rewriting.
+export const projectArtifactPath = (cssPath: string) =>
+    path.resolve(
+        __dirname,
+        '../../.artifacts',
+        `${createHash('sha256').update(path.resolve(cssPath)).digest('hex').slice(0, 16)}.css`,
+    )
 
 // In development, a native CSS entry requires the stylesheets its compile imported, so that they join
 // Metro's graph and editing one, even to change a single token, re-runs the entry's uncached transform.
-// Installed packages are left out, and so is the directory of Uniwind's generated stylesheet: the
-// transform writes it, so requiring it would rebuild the entry after its own write, and Metro servers
-// of other projects sharing the install (a federation host and its remotes) after each other's. Both
-// sides are compared by real path, since a linked uniwind reports its stylesheets outside node_modules.
+// Installed packages are left out, and so is Uniwind's package directory, which holds the stylesheets
+// the transform writes: the project artifact `@import "uniwind"` resolves to and the shared copy.
+// Requiring them would rebuild the entry after its own writes, and the Metro servers of other projects
+// sharing the install (a federation host and its remotes) after each other's. Both sides are compared
+// by real path, since a linked uniwind reports its stylesheets outside node_modules.
 export const isImportedStylesheet = (stylesheet: string, artifactPath: string) =>
     stylesheet.endsWith('.css')
     && !stylesheet.includes(`${path.sep}node_modules${path.sep}`)
@@ -149,7 +161,12 @@ export const transform = async (
 
     // For an inlined remote, artifact generation stays on the host entry so
     // concurrent workers compiling either stylesheet write identical bytes.
-    await baseBundlerConfig.generateArtifacts(cssArtifactPath)
+    const artifactPath = projectArtifactPath(baseBundlerConfig.cssPath)
+
+    fs.mkdirSync(path.dirname(artifactPath), { recursive: true })
+    await baseBundlerConfig.generateArtifacts(artifactPath)
+    // Tools that import the package stylesheet directly still see a generated one.
+    writeFileAtomicSync(cssArtifactPath, fs.readFileSync(artifactPath, 'utf-8'))
 
     const bundlerConfig = inlinedRemote === undefined
         ? baseBundlerConfig
@@ -173,10 +190,13 @@ export const transform = async (
         )
     const isWeb = bundlerConfig.platform === Platform.Web
     const importedStylesheets = new Set<string>()
-    const virtualCode = await compileCSS(bundlerConfig, dependency => {
-        if (!isWeb && options.dev && isImportedStylesheet(dependency, cssArtifactPath)) {
-            importedStylesheets.add(dependency)
-        }
+    const virtualCode = await compileCSS(bundlerConfig, {
+        artifactPath,
+        onDependency: dependency => {
+            if (!isWeb && options.dev && isImportedStylesheet(dependency, cssArtifactPath)) {
+                importedStylesheets.add(dependency)
+            }
+        },
     })
     const importedStylesheetRequires = Array.from(importedStylesheets).sort().map(stylesheet => {
         const relativePath = path.relative(path.dirname(bundlerConfig.cssPath), stylesheet).split(path.sep).join('/')

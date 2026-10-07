@@ -1,6 +1,6 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { transform } from '../../../src/bundler/adapters/metro/transformer'
+import { projectArtifactPath, transform } from '../../../src/bundler/adapters/metro/transformer'
 import { UniwindBundlerConfig } from '../../../src/bundler/config'
 import { Uniwind } from '../../../src/core/config/config.native'
 import { UniwindStore } from '../../../src/core/native'
@@ -78,8 +78,9 @@ describe('inlined remote CSS', () => {
 
         const artifactCSSPaths: string[] = []
         jest.spyOn(UniwindBundlerConfig.prototype, 'generateArtifacts').mockImplementation(
-            function(this: UniwindBundlerConfig) {
+            function(this: UniwindBundlerConfig, artifactPath: string) {
                 artifactCSSPaths.push(this.cssPath)
+                copyFileSync(path.resolve('uniwind.css'), artifactPath)
                 return Promise.resolve()
             },
         )
@@ -119,6 +120,7 @@ describe('inlined remote CSS', () => {
             expect(artifactCSSPaths).toEqual([hostCSSPath, hostCSSPath, hostCSSPath])
         } finally {
             rmSync(directory, { force: true, recursive: true })
+            rmSync(projectArtifactPath(hostCSSPath), { force: true })
         }
     })
 
@@ -146,7 +148,8 @@ describe('inlined remote CSS', () => {
         writeFileSync(path.join(remoteDirectory, 'Remote.tsx'), `export const className = 'rmt:opacity-50 rmt:active:opacity-90'`)
 
         jest.spyOn(UniwindBundlerConfig.prototype, 'generateArtifacts').mockImplementation(
-            function(this: UniwindBundlerConfig) {
+            function(this: UniwindBundlerConfig, artifactPath: string) {
+                copyFileSync(path.resolve('uniwind.css'), artifactPath)
                 return Promise.resolve()
             },
         )
@@ -194,6 +197,7 @@ describe('inlined remote CSS', () => {
         } finally {
             disposers.splice(0).forEach(dispose => dispose())
             rmSync(directory, { force: true, recursive: true })
+            rmSync(projectArtifactPath(hostCSSPath), { force: true })
         }
     })
 })
