@@ -20,4 +20,3 @@ export {
     View,
     VirtualizedList,
 } from 'react-native'
-export { Text, TextInput } from '../../../components/native/classless'
