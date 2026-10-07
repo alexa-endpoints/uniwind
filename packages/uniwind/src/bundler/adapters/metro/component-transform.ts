@@ -1,6 +1,7 @@
 import type { NodePath, PluginObj } from '@babel/core'
 import type * as t from '@babel/types'
 import {
+    DEFAULT_FONT_COMPONENT_NAME_SET,
     NATIVE_COMPONENT_NAME_SET,
     type NativeComponentName,
     RAW_COMPONENTS_MODULE,
@@ -9,7 +10,8 @@ import {
 const REACT_NATIVE_MODULE = 'react-native'
 const REACT_MODULE = 'react'
 
-const isNativeComponentName = (name: string): name is NativeComponentName => NATIVE_COMPONENT_NAME_SET.has(name)
+const isNativeComponentName = (name: string): name is NativeComponentName =>
+    NATIVE_COMPONENT_NAME_SET.has(name) && !DEFAULT_FONT_COMPONENT_NAME_SET.has(name)
 
 const getImportSource = (path: NodePath) =>
     path.parentPath?.isImportDeclaration()

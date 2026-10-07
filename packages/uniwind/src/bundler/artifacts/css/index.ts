@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { DEFAULT_FONT_CSS } from './defaultFont'
 import { EXTRA_UTILITIES_CSS } from './extraUtilities'
 import { INSETS_CSS } from './insets'
 import { OVERWRITE_CSS } from './overwrite'
@@ -16,6 +17,7 @@ export const buildCSS = async (themes: Array<string>, input: string, cssFilePath
         INSETS_CSS,
         OVERWRITE_CSS,
         EXTRA_UTILITIES_CSS,
+        DEFAULT_FONT_CSS,
         themesCSS,
     ].join('\n')
 

@@ -4,6 +4,7 @@ import { TextInput as RNTextInput } from 'react-native'
 import type { ComponentState } from '../../core/types'
 import { copyComponentProperties } from '../utils'
 import { useAccentColor } from './useAccentColor'
+import { useDefaultFontFamily } from './useDefaultFontFamily'
 import { useStyle } from './useStyle'
 
 export const TextInput = copyComponentProperties(RNTextInput, (props: TextInputProps) => {
@@ -15,6 +16,7 @@ export const TextInput = copyComponentProperties(RNTextInput, (props: TextInputP
         isPressed,
     } satisfies ComponentState
     const style = useStyle(props.className, props, state)
+    const defaultFontFamily = useDefaultFontFamily()
     const cursorColor = useAccentColor(props.cursorColorClassName, props, state)
     const selectionColor = useAccentColor(props.selectionColorClassName, props, state)
     const placeholderTextColor = useAccentColor(props.placeholderTextColorClassName, props, state)
@@ -24,7 +26,7 @@ export const TextInput = copyComponentProperties(RNTextInput, (props: TextInputP
     return (
         <RNTextInput
             {...props}
-            style={[style, props.style]}
+            style={[defaultFontFamily, style, props.style]}
             cursorColor={props.cursorColor ?? cursorColor}
             selectionColor={props.selectionColor ?? selectionColor}
             placeholderTextColor={props.placeholderTextColor ?? placeholderTextColor}
