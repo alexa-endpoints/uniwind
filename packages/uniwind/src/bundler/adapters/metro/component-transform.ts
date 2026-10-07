@@ -1,16 +1,14 @@
 import type { NodePath, PluginObj, types as t } from '@babel/core'
 import {
-    DEFAULT_FONT_COMPONENT_NAME_SET,
-    NATIVE_COMPONENT_NAME_SET,
-    type NativeComponentName,
+    RAW_COMPONENT_NAME_SET,
     RAW_COMPONENTS_MODULE,
+    type RawComponentName,
 } from './constants'
 
 const REACT_NATIVE_MODULE = 'react-native'
 const REACT_MODULE = 'react'
 
-const isNativeComponentName = (name: string): name is NativeComponentName =>
-    NATIVE_COMPONENT_NAME_SET.has(name) && !DEFAULT_FONT_COMPONENT_NAME_SET.has(name)
+const isRawComponentName = (name: string): name is RawComponentName => RAW_COMPONENT_NAME_SET.has(name)
 
 const getImportSource = (path: NodePath) =>
     path.parentPath?.isImportDeclaration()
@@ -126,7 +124,7 @@ const resolveDestructuredComponent = (
         }
 
         const componentName = getObjectPropertyName(property)
-        if (componentName && isNativeComponentName(componentName)) {
+        if (componentName && isRawComponentName(componentName)) {
             return componentName
         }
     }
@@ -137,7 +135,7 @@ const resolveDestructuredComponent = (
 const resolveComponentReference = (
     path: NodePath | null | undefined,
     visited = new Set<t.Node>(),
-): NativeComponentName | undefined => {
+): RawComponentName | undefined => {
     if (!path) {
         return undefined
     }
@@ -165,7 +163,7 @@ const resolveComponentReference = (
         if (
             !Array.isArray(property)
             && (property.isIdentifier() || property.isJSXIdentifier())
-            && isNativeComponentName(property.node.name)
+            && isRawComponentName(property.node.name)
             && !Array.isArray(object)
             && isModuleNamespace(object, REACT_NATIVE_MODULE, visited)
         ) {
@@ -188,7 +186,7 @@ const resolveComponentReference = (
     if (binding.path.isImportSpecifier() && getImportSource(binding.path) === REACT_NATIVE_MODULE) {
         const importedName = getImportedName(binding.path)
 
-        return importedName && isNativeComponentName(importedName)
+        return importedName && isRawComponentName(importedName)
             ? importedName
             : undefined
     }
@@ -307,8 +305,8 @@ export const componentTransform = ({ types }: { types: typeof t }): PluginObj =>
     name: 'uniwind-component-transform',
     visitor: {
         Program(programPath) {
-            const rawIdentifiers = new Map<NativeComponentName, t.Identifier>()
-            const getRawIdentifier = (componentName: NativeComponentName) => {
+            const rawIdentifiers = new Map<RawComponentName, t.Identifier>()
+            const getRawIdentifier = (componentName: RawComponentName) => {
                 const existing = rawIdentifiers.get(componentName)
                 if (existing) {
                     return existing
