@@ -127,7 +127,8 @@ Metro integration:
 - Metro transformer handles the configured host CSS entry file and any host-declared inlined remote CSS entry files specially. In development, native entries declare imported local CSS files as Metro dependencies, including nested imports and workspace files resolved outside `node_modules`, so token-only edits trigger recompilation. Dependencies are collected afresh on each compile. Files in Uniwind's own package directory are never declared: it holds the stylesheet the transform writes, so declaring it would rebuild the entry after the transform's own write, and the Metro servers of projects sharing one install (a federation host and its remotes) after each other's.
 - Other native CSS is an empty module in plain Metro; Expo keeps its own CSS handling. Web CSS handling is unchanged.
 - `experimental.optimizeClasslessComponents` (off by default) compiles classless native elements
-  to raw React Native components; styled or uncertain references keep existing wrappers.
+  to raw React Native components; styled or uncertain references, and every `Text`/`TextInput`,
+  keep existing wrappers.
 - Metro transformer worker selection is lazy, cached per Expo/non-Expo config type, and follows Expo transformer paths or Expo-specific config markers.
 - Host native platform CSS transforms into a JS module that calls `Uniwind.__reinit(...)` with a fingerprint of the generated styles and themes. During development, the native runtime skips reinitialization when that fingerprint is unchanged.
 - Federated remote native CSS transforms into an owner-keyed merge registration, declaring its imported stylesheets in development like a host entry.
@@ -181,7 +182,7 @@ Native components:
 - Most components combine generated style before user style: `[generatedStyle, props.style]`, preserving user overrides.
 - Stateful components such as `Pressable` pass `pressed`, `focused`, and `disabled` state into style resolution.
 - Accent-capable components use `accentColor` extraction helpers where needed.
-- Root `Text` and `TextInput` start from the theme's `--default-font-family`, the token Tailwind's preflight puts on the web root, when it names a single family; React Native cannot resolve a fallback list or a CSS-wide keyword, so those keep the platform default. Tailwind's default theme derives the token from `--font-sans`. Nested text inherits from its parent, and `className` and `style` still override. Statically classless `Text` and `TextInput` from `experimental.optimizeClasslessComponents` keep this default.
+- Root `Text` and `TextInput` start from the theme's `--default-font-family`, the token Tailwind's preflight puts on the web root, when it names a single family; React Native cannot resolve a fallback list or a CSS-wide keyword, so those keep the platform default. Tailwind's default theme derives the token from `--font-sans`. Nested text inherits from its parent, and `className` and `style` still override. `experimental.optimizeClasslessComponents` therefore excludes `Text` and `TextInput`: only the wrapper reads the variable, and a raw component would also pull Uniwind's runtime into a federated remote's bundle.
 
 Web components:
 

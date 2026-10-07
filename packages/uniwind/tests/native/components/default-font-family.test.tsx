@@ -1,7 +1,6 @@
 import { act } from '@testing-library/react-native'
 import * as React from 'react'
 import { unstable_TextAncestorContext as TextAncestorContext } from 'react-native'
-import { Text as RawText, TextInput as RawTextInput } from '../../../src/bundler/adapters/metro/raw-components'
 import Text from '../../../src/components/native/Text'
 import TextInput from '../../../src/components/native/TextInput'
 import { ScopedTheme } from '../../../src/components/ScopedTheme/ScopedTheme.native'
@@ -56,13 +55,11 @@ describe('Default font family', () => {
             const { getStylesFromId, unmount } = renderUniwind(
                 <React.Fragment>
                     <Text testID="text">Hello</Text>
-                    <RawText testID="raw">Hello</RawText>
                     <TextInput testID="input" />
                 </React.Fragment>,
             )
 
             expect(getStylesFromId('text').fontFamily).toBeUndefined()
-            expect(getStylesFromId('raw')?.fontFamily).toBeUndefined()
             expect(getStylesFromId('input').fontFamily).toBeUndefined()
             unmount()
         }
@@ -142,28 +139,5 @@ describe('Default font family', () => {
         })
 
         expect(getStylesFromId('global').fontFamily).toEqual('Inter Display')
-    })
-
-    test('applies to statically classless text and inputs', () => {
-        useDefaults('Inter')
-
-        const { getStylesFromId } = renderUniwind(
-            <React.Fragment>
-                <RawText testID="text">Hello</RawText>
-                <RawText style={{ fontFamily: 'Menlo' }} testID="style">Hello</RawText>
-                <RawTextInput testID="input" />
-                <RawText testID="outer">
-                    Outer{' '}
-                    <NestedText>
-                        <RawText testID="inner">inner</RawText>
-                    </NestedText>
-                </RawText>
-            </React.Fragment>,
-        )
-
-        expect(getStylesFromId('text').fontFamily).toEqual('Inter')
-        expect(getStylesFromId('style').fontFamily).toEqual('Menlo')
-        expect(getStylesFromId('input').fontFamily).toEqual('Inter')
-        expect(getStylesFromId('inner')?.fontFamily).toBeUndefined()
     })
 })
