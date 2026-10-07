@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { writeFileAtomic } from '../writeFileAtomic'
 import { DEFAULT_FONT_CSS } from './defaultFont'
 import { EXTRA_UTILITIES_CSS } from './extraUtilities'
 import { INSETS_CSS } from './insets'
@@ -25,8 +26,5 @@ export const buildCSS = async (themes: Array<string>, input: string, cssFilePath
         return
     }
 
-    fs.writeFileSync(
-        cssFilePath,
-        newCssFile,
-    )
+    writeFileAtomic(cssFilePath, newCssFile)
 }
