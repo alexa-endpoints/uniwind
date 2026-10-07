@@ -4,6 +4,8 @@ import fs from 'fs'
 import { transform } from 'lightningcss'
 import path from 'path'
 
+type ThemesVariables = Record<string, Set<string>>
+
 const readFileSafe = (filePath: string) => {
     try {
         return fs.readFileSync(filePath, 'utf-8')
@@ -21,65 +23,151 @@ const isExcludedDependency = (url: string) =>
 
 const removeImportsForAnalysis = (css: string) => css.replace(/@import(?:[^;"']+|"[^"]*"|'[^']*')+;/g, '')
 
-export const generateCSSForThemes = async (themes: Array<string>, input: string) => {
-    // css generation
-    const themesVariables = Object.fromEntries(themes.map(theme => [theme, new Set<string>()]))
-    const inputPath = path.resolve(input)
-    const cssPaths = new Set([inputPath])
-    const inputCSS = readFileSafe(inputPath)
+const hasThemesVariables = (themesVariables: ThemesVariables) => Object.values(themesVariables).some(variables => variables.size > 0)
 
-    if (inputCSS !== null) {
-        await compile(inputCSS, {
-            base: path.dirname(inputPath),
-            onDependency: dependency => {
-                if (!isExcludedDependency(dependency)) {
-                    cssPaths.add(dependency)
+const findThemesVariables = (themes: Array<string>, css: string, themesVariables: ThemesVariables) => {
+    transform({
+        // Tailwind owns import resolution, including prefix(...). Lightning
+        // CSS only inspects import-free source for Uniwind theme metadata.
+        code: Buffer.from(removeImportsForAnalysis(css)),
+        filename: 'uniwind.css',
+        visitor: {
+            Rule: rule => {
+                if (rule.type === 'unknown' && rule.value.name === 'variant') {
+                    const [firstPrelude] = rule.value.prelude
+
+                    if (
+                        firstPrelude?.type !== 'token'
+                        || firstPrelude.value.type !== 'ident'
+                        || !themes.includes(firstPrelude.value.value)
+                    ) {
+                        return
+                    }
+
+                    const theme = firstPrelude.value.value
+
+                    rule.value.block?.forEach(block => {
+                        if (block.type === 'dashed-ident') {
+                            themesVariables[theme]?.add(block.value)
+                        }
+                    })
                 }
             },
-        })
-    }
+        },
+    })
+}
 
-    for (const cssPath of cssPaths) {
-        const css = readFileSafe(cssPath)
+// The theme variants the generated artifact declares.
+const generateThemeVariantsCSS = (themes: Array<string>) =>
+    themes.map(theme => {
+        const notOtherThemes = themes.map(t => `.${t}, .${t} *`)
 
-        if (css === null) {
-            continue
+        if (theme === 'dark' || theme === 'light') {
+            return [
+                `@custom-variant ${theme} {`,
+                `   &:where(.${theme}, .${theme} *) {`,
+                '       @slot;',
+                '   }',
+                '',
+                `   @media (prefers-color-scheme: ${theme}) {`,
+                `       &:not(:where(${notOtherThemes.join(', ')})) {`,
+                '           @slot;',
+                '       }',
+                '   }',
+                '}',
+                '',
+            ].join('\n')
         }
 
-        transform({
-            // Tailwind owns import resolution, including prefix(...). Lightning
-            // CSS only inspects import-free source for Uniwind theme metadata.
-            code: Buffer.from(removeImportsForAnalysis(css)),
-            filename: 'uniwind.css',
-            visitor: {
-                Rule: rule => {
-                    if (rule.type === 'unknown' && rule.value.name === 'variant') {
-                        const [firstPrelude] = rule.value.prelude
+        return `@custom-variant ${theme} (&:where(.${theme}, .${theme} *));`
+    })
 
-                        if (
-                            firstPrelude?.type !== 'token'
-                            || firstPrelude.value.type !== 'ident'
-                            || !themes.includes(firstPrelude.value.value)
-                        ) {
-                            return
+// The theme variables the generated artifact declares.
+const generateThemeVariablesCSS = (themesVariables: ThemesVariables) =>
+    hasThemesVariables(themesVariables)
+        ? [
+            '',
+            '@theme {',
+            ...Array.from(Object.values(themesVariables).at(0) ?? []).map(variable => `    ${variable}: unset;`),
+            '}',
+        ]
+        : []
+
+// The discovery compile imports the entry under this name, which it resolves to the entry's path: Tailwind's resolver
+// would read a `?` or `#` in the entry's file name as a query or a fragment.
+const DISCOVERY_ENTRY = 'uniwind:discovery-entry'
+
+export const generateCSSForThemes = async (themes: Array<string>, input: string) => {
+    // css generation
+    const themesVariables: ThemesVariables = Object.fromEntries(themes.map(theme => [theme, new Set<string>()]))
+    const inputPath = path.resolve(input)
+    const cssPaths = new Set<string>()
+    const scannedPaths = new Set<string>()
+    const inputCSS = readFileSafe(inputPath)
+
+    // Tailwind reports nested imports as it finishes reading their parents, in an order that varies between
+    // runs. Scanning the stylesheets after the entry in path order keeps the generated artifact's bytes stable.
+    const scanCSSPaths = () => {
+        for (const cssPath of [inputPath, ...Array.from(cssPaths).sort()]) {
+            const css = scannedPaths.has(cssPath) ? null : readFileSafe(cssPath)
+
+            scannedPaths.add(cssPath)
+
+            if (css !== null) {
+                findThemesVariables(themes, css, themesVariables)
+            }
+        }
+    }
+
+    if (inputCSS !== null) {
+        // Discovery compiles the entry to find the stylesheets Tailwind resolves. That compile also validates the
+        // entry, while `@import "uniwind"` resolves to the current artifact, a fresh install's or another project's,
+        // which may lack this build's theme variants (@variant) and theme variables (@apply, --theme()). So the
+        // entry is compiled with the theme declarations this function generates, from the variables found so far:
+        // the variants before it, so that the entry's own @custom-variant still wins, and the variables after it.
+        // The entry is imported rather than inlined, so that its last statement, which may end at EOF without a
+        // semicolon or inside an unclosed comment, ends with it. Tailwind resolves every @import before it
+        // validates anything: when the compile fails after reaching stylesheets that declare theme variables, it
+        // is retried with them. Any other error, such as an @import that doesn't resolve, fails artifact
+        // generation instead of leaving theme variables out.
+        const discoverCSSPaths = () =>
+            compile(
+                [
+                    ...generateThemeVariantsCSS(themes),
+                    `@import "${DISCOVERY_ENTRY}";`,
+                    ...generateThemeVariablesCSS(themesVariables),
+                ].join('\n'),
+                {
+                    base: path.dirname(inputPath),
+                    customCssResolver: id => Promise.resolve(id === DISCOVERY_ENTRY ? inputPath : undefined),
+                    onDependency: dependency => {
+                        if (!isExcludedDependency(dependency)) {
+                            cssPaths.add(dependency)
                         }
-
-                        const theme = firstPrelude.value.value
-
-                        rule.value.block?.forEach(block => {
-                            if (block.type === 'dashed-ident') {
-                                themesVariables[theme]?.add(block.value)
-                            }
-                        })
-                    }
+                    },
                 },
-            },
+            )
+
+        await discoverCSSPaths().catch(async (error: unknown) => {
+            // Lightning CSS can't scan every stylesheet Tailwind accepts. A failed compile still reports its own error.
+            try {
+                scanCSSPaths()
+            } catch {
+                throw error
+            }
+
+            if (!hasThemesVariables(themesVariables)) {
+                throw error
+            }
+
+            await discoverCSSPaths()
         })
     }
+
+    scanCSSPaths()
 
     // Check if all themes have the same variables
     let hasErrors = false as boolean
-    const hasVariables = Object.values(themesVariables).some(variables => variables.size > 0)
 
     Object.values(themesVariables).forEach(variables => {
         Object.entries(themesVariables).forEach(([checkedTheme, checkedVariables]) => {
@@ -96,39 +184,5 @@ export const generateCSSForThemes = async (themes: Array<string>, input: string)
         Logger.error('All themes must have the same variables')
     }
 
-    const variablesCSS = hasVariables
-        ? [
-            '',
-            '@theme {',
-            ...Array.from(Object.values(themesVariables).at(0) ?? []).map(variable => `    ${variable}: unset;`),
-            '}',
-        ]
-        : []
-    const uniwindCSS = [
-        ...themes.map(theme => {
-            const notOtherThemes = themes.map(t => `.${t}, .${t} *`)
-
-            if (theme === 'dark' || theme === 'light') {
-                return [
-                    `@custom-variant ${theme} {`,
-                    `   &:where(.${theme}, .${theme} *) {`,
-                    '       @slot;',
-                    '   }',
-                    '',
-                    `   @media (prefers-color-scheme: ${theme}) {`,
-                    `       &:not(:where(${notOtherThemes.join(', ')})) {`,
-                    '           @slot;',
-                    '       }',
-                    '   }',
-                    '}',
-                    '',
-                ].join('\n')
-            }
-
-            return `@custom-variant ${theme} (&:where(.${theme}, .${theme} *));`
-        }),
-        ...variablesCSS,
-    ].join('\n')
-
-    return uniwindCSS
+    return [...generateThemeVariantsCSS(themes), ...generateThemeVariablesCSS(themesVariables)].join('\n')
 }
