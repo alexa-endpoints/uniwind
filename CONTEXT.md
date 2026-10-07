@@ -123,11 +123,13 @@ Metro integration:
 - Metro transformer handles the configured host CSS entry file and any host-declared inlined remote CSS entry files specially.
 - `experimental.optimizeClasslessComponents` (off by default) compiles classless native elements
   to raw React Native components; styled or uncertain references, and every `Text`/`TextInput`,
-  keep existing wrappers.
+  keep existing wrappers. The deprecated `SafeAreaView` always keeps its wrapper, because React
+  Native warns when that export is read.
 - Metro transformer worker selection is lazy, cached per Expo/non-Expo config type, and follows Expo transformer paths or Expo-specific config markers.
 - Host native platform CSS transforms into a JS module that calls `Uniwind.__reinit(...)` with a fingerprint of the generated styles and themes. During development, the native runtime skips reinitialization when that fingerprint is unchanged.
 - Federated remote native CSS transforms into an owner-keyed merge registration.
 - Inlined remote stylesheets compile with remote federation semantics inside the host graph. Artifact generation remains tied to the host stylesheet so concurrent Metro workers write identical shared CSS and typings.
+- Each project compiles against its own generated stylesheet under the package's `.artifacts/`, keyed by the resolved CSS entry path, so projects with different themes (a federation host and its remotes) can build concurrently from one installed package. The shared `uniwind.css` is still written for tools that import it directly. Generated files are written through a temporary file and rename so readers never see a partial file.
 - Web platform CSS transforms into CSS plus web runtime setup.
 - Resolver swaps React Native component imports to Uniwind-aware implementations where needed.
 

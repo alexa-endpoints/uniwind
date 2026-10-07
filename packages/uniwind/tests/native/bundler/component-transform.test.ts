@@ -2,9 +2,9 @@ import { transformSync, traverse } from '@babel/core'
 import { componentTransform } from '../../../src/bundler/adapters/metro/component-transform'
 import {
     DEFAULT_FONT_COMPONENT_NAMES,
-    type NativeComponentName,
-    OPTIMIZABLE_COMPONENT_NAMES,
+    RAW_COMPONENT_NAMES,
     RAW_COMPONENTS_MODULE,
+    type RawComponentName,
 } from '../../../src/bundler/adapters/metro/constants'
 import * as rawComponents from '../../../src/bundler/adapters/metro/raw-components'
 import { shouldTransformClasslessComponents } from '../../../src/bundler/adapters/metro/transformer'
@@ -33,7 +33,6 @@ const CLASS_PROPS_BY_COMPONENT = {
         'titleColorClassName',
         'progressBackgroundColorClassName',
     ],
-    SafeAreaView: ['className'],
     ScrollView: ['className', 'contentContainerClassName', 'endFillColorClassName'],
     SectionList: [
         'className',
@@ -49,15 +48,6 @@ const CLASS_PROPS_BY_COMPONENT = {
         'thumbColorClassName',
         'ios_backgroundColorClassName',
     ],
-    Text: ['className', 'selectionColorClassName'],
-    TextInput: [
-        'className',
-        'cursorColorClassName',
-        'selectionColorClassName',
-        'placeholderTextColorClassName',
-        'selectionHandleColorClassName',
-        'underlineColorAndroidClassName',
-    ],
     TouchableHighlight: ['className', 'underlayColorClassName'],
     TouchableNativeFeedback: ['className'],
     TouchableOpacity: ['className'],
@@ -70,7 +60,7 @@ const CLASS_PROPS_BY_COMPONENT = {
         'ListHeaderComponentClassName',
         'endFillColorClassName',
     ],
-} as const satisfies Record<NativeComponentName, ReadonlyArray<string>>
+} as const satisfies Record<RawComponentName, ReadonlyArray<string>>
 
 const runTransform = (source: string) => {
     const result = transformSync(source, {
@@ -96,7 +86,7 @@ const runTransform = (source: string) => {
 
 const transform = (source: string) => runTransform(source).code
 
-describe.each(OPTIMIZABLE_COMPONENT_NAMES)('%s compile-time dispatch', componentName => {
+describe.each(RAW_COMPONENT_NAMES)('%s compile-time dispatch', componentName => {
     test('is exported by the private raw-component module', () => {
         expect((rawComponents as Record<string, unknown>)[componentName]).toBeDefined()
     })
@@ -327,6 +317,18 @@ test('does not rewrite unsupported React Native exports', () => {
 
     expect(code).not.toContain(RAW_COMPONENTS_MODULE)
     expect(code).toContain('<StatusBar />')
+})
+
+test('keeps the deprecated SafeAreaView on the Uniwind wrapper path', () => {
+    const code = transform(`
+        import { SafeAreaView } from 'react-native'
+
+        export const Component = () => <SafeAreaView testID="component" />
+    `)
+
+    expect(code).not.toContain(RAW_COMPONENTS_MODULE)
+    expect(code).toContain('<SafeAreaView testID="component" />')
+    expect(rawComponents).not.toHaveProperty('SafeAreaView')
 })
 
 test('requires the Metro experimental option', () => {

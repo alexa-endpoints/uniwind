@@ -9,7 +9,6 @@ export {
     Modal,
     Pressable,
     RefreshControl,
-    SafeAreaView,
     ScrollView,
     SectionList,
     Switch,

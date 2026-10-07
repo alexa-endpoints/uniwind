@@ -1,8 +1,10 @@
+import { writeFileAtomic } from '@/bundler/artifacts/writeFileAtomic'
 import { UniwindBundlerConfig } from '@/bundler/config'
 import { compileCSS } from '@/bundler/css-compiler'
 import type { UniwindMetroConfig } from '@/bundler/types'
 import { Platform } from '@/common/consts'
 import type * as ExpoMetroConfig from '@expo/metro-config'
+import fs from 'fs'
 import type * as MetroTransformWorker from 'metro-transform-worker'
 import type { JsTransformerConfig, JsTransformOptions } from 'metro-transform-worker'
 import { createHash } from 'node:crypto'
@@ -12,7 +14,17 @@ import {
     UPSTREAM_BABEL_TRANSFORMER,
 } from './constants'
 
-const cssArtifactPath = path.resolve(__dirname, '../../uniwind.css')
+export const cssArtifactPath = path.resolve(__dirname, '../../uniwind.css')
+
+// Projects with different themes, such as a federation host and its remotes, can build at the
+// same time from one installed package. Each compiles against its own artifact rather than the
+// shared stylesheet another build may be rewriting.
+export const projectArtifactPath = (cssPath: string) =>
+    path.resolve(
+        __dirname,
+        '../../.artifacts',
+        `${createHash('sha256').update(path.resolve(cssPath)).digest('hex').slice(0, 16)}.css`,
+    )
 
 // Cache workers separately for Expo (`true`) and plain Metro (`false`) configs.
 const workerCache = new Map<boolean, typeof MetroTransformWorker>()
@@ -132,7 +144,12 @@ export const transform = async (
 
     // For an inlined remote, artifact generation stays on the host entry so
     // concurrent workers compiling either stylesheet write identical bytes.
-    await baseBundlerConfig.generateArtifacts(cssArtifactPath)
+    const artifactPath = projectArtifactPath(baseBundlerConfig.cssPath)
+
+    fs.mkdirSync(path.dirname(artifactPath), { recursive: true })
+    await baseBundlerConfig.generateArtifacts(artifactPath)
+    // Tools that import the package stylesheet directly still see a generated one.
+    writeFileAtomic(cssArtifactPath, fs.readFileSync(artifactPath, 'utf-8'))
 
     const bundlerConfig = inlinedRemote === undefined
         ? baseBundlerConfig
@@ -154,7 +171,7 @@ export const transform = async (
             },
             options.platform,
         )
-    const virtualCode = await compileCSS(bundlerConfig)
+    const virtualCode = await compileCSS(bundlerConfig, artifactPath)
     const isWeb = bundlerConfig.platform === Platform.Web
     const federation = bundlerConfig.federation
     const nativeStylesFingerprint = isWeb || federation?.role === 'remote'
