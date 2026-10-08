@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { projectArtifactPath, transform } from '../../../src/bundler/adapters/metro/transformer'
 
@@ -19,13 +19,14 @@ const createProject = (directory: string, name: string, className: string) => {
     return cssPath
 }
 
-const transformCSS = (cssPath: string, extraThemes: Array<string>) =>
+const transformCSS = (cssPath: string, extraThemes: Array<string>, cssArtifactFile?: string) =>
     transform(
         {
             uniwind: {
                 cssEntryFile: path.relative(process.cwd(), cssPath),
                 dtsFile: path.join(path.dirname(cssPath), 'uniwind-types.d.ts'),
                 extraThemes,
+                cssArtifactFile,
             },
         } as unknown as Parameters<typeof transform>[0],
         process.cwd(),
@@ -67,9 +68,25 @@ describe('concurrent project artifacts', () => {
             expect(projectArtifactPath(oceanCSSPath)).not.toBe(projectArtifactPath(plainCSSPath))
         } finally {
             rmSync(directory, { force: true, recursive: true })
-            ;[oceanCSSPath, plainCSSPath].map(projectArtifactPath).filter(existsSync).forEach(artifactPath => {
+            ;[oceanCSSPath, plainCSSPath].map(cssPath => projectArtifactPath(cssPath)).filter(existsSync).forEach(artifactPath => {
                 rmSync(artifactPath, { force: true })
             })
+        }
+    })
+
+    test('compiles against a configured artifact file', async () => {
+        const directory = mkdtempSync(path.join(process.cwd(), '.tmp-concurrent-artifacts-'))
+        const oceanCSSPath = createProject(directory, 'ocean', 'ocean:bg-red-500')
+        const cssArtifactFile = path.relative(process.cwd(), path.join(directory, 'generated', 'uniwind.css'))
+
+        try {
+            const code = await transformCSS(oceanCSSPath, ['ocean'], cssArtifactFile)
+
+            expect(code).toContain('"className": "ocean:bg-red-500"')
+            expect(readFileSync(cssArtifactFile, 'utf-8')).toContain('@custom-variant ocean')
+            expect(existsSync(projectArtifactPath(oceanCSSPath))).toBe(false)
+        } finally {
+            rmSync(directory, { force: true, recursive: true })
         }
     })
 })

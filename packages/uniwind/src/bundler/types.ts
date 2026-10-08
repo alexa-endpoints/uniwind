@@ -33,6 +33,7 @@ export type UniwindExperimentalConfig = {
 }
 
 export type UniwindMetroConfig = UniwindConfig & {
+    cssArtifactFile?: string
     experimental?: UniwindExperimentalConfig
     polyfills?: Polyfills
     debug?: boolean

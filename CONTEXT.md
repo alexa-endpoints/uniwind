@@ -102,6 +102,7 @@ Configuration shape:
 - `cssEntryFile`: required CSS entry path, resolved from `process.cwd()`.
 - `extraThemes`: optional named themes added to default `light` and `dark`.
 - `dtsFile`: optional generated declaration file path, default `uniwind-types.d.ts`.
+- Metro-only `cssArtifactFile`: optional path of the project's generated stylesheet, resolved from `process.cwd()`; default is a file under the package's `.artifacts/` keyed by the CSS entry path.
 - Metro-only `experimental.federation`: optional experimental host/remote build contract. Hosts may declare exact shared class candidates that are force-generated into the base build and may list inlined remote stylesheets with an owner ID, CSS entry file, and optional shared candidates. Remotes use a stable owner ID and exclude exact shared candidates from their scanned delta. See the [local Module Federation demo](apps/module-federation/README.md).
 - Metro-only `experimental.optimizeClasslessComponents`: optional native compile-time optimization for statically classless built-in React Native elements, default `false`.
 - Metro-only `polyfills.rem`: custom rem base, default `16`.
@@ -129,7 +130,7 @@ Metro integration:
 - Host native platform CSS transforms into a JS module that calls `Uniwind.__reinit(...)` with a fingerprint of the generated styles and themes. During development, the native runtime skips reinitialization when that fingerprint is unchanged.
 - Federated remote native CSS transforms into an owner-keyed merge registration.
 - Inlined remote stylesheets compile with remote federation semantics inside the host graph. Artifact generation remains tied to the host stylesheet so concurrent Metro workers write identical shared CSS and typings.
-- Each project compiles against its own generated stylesheet under the package's `.artifacts/`, keyed by the resolved CSS entry path, so projects with different themes (a federation host and its remotes) can build concurrently from one installed package. The shared `uniwind.css` is still written for tools that import it directly. Generated files are written through a temporary file and rename so readers never see a partial file.
+- Each project compiles against its own generated stylesheet (`cssArtifactFile`, or by default a file under the package's `.artifacts/` keyed by the resolved CSS entry path), so projects with different themes (a federation host and its remotes) can build concurrently from one installed package. The shared `uniwind.css` is still written for tools that import it directly. Generated files are written through a temporary file and rename so readers never see a partial file.
 - Web platform CSS transforms into CSS plus web runtime setup.
 - Resolver swaps React Native component imports to Uniwind-aware implementations where needed.
 
