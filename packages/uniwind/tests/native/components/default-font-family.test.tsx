@@ -140,4 +140,53 @@ describe('Default font family', () => {
 
         expect(getStylesFromId('global').fontFamily).toEqual('Inter Display')
     })
+
+    test('catches up with theme changes while Activity is hidden', () => {
+        useDefaults('Inter', 'Inter Dark')
+
+        // Keep the child stable so a parent render cannot repair a stale font.
+        const child = <Text testID="text">Hello</Text>
+        const App = ({ hidden }: { hidden: boolean }) => <React.Activity mode={hidden ? 'hidden' : 'visible'}>{child}</React.Activity>
+        const { getStylesFromId, rerender } = renderUniwind(<App hidden={false} />)
+        expect(getStylesFromId('text').fontFamily).toEqual('Inter')
+
+        rerender(<App hidden />)
+        act(() => Uniwind.setTheme('dark'))
+        rerender(<App hidden={false} />)
+        expect(getStylesFromId('text').fontFamily).toEqual('Inter Dark')
+
+        rerender(<App hidden />)
+        act(() => Uniwind.updateCSSVariables('dark', { '--default-font-family': 'Inter Display' }))
+        rerender(<App hidden={false} />)
+        expect(getStylesFromId('text').fontFamily).toEqual('Inter Display')
+
+        act(() => Uniwind.setTheme('light'))
+        expect(getStylesFromId('text').fontFamily).toEqual('Inter')
+    })
+
+    test('catches up with theme changes while Suspense is suspended', () => {
+        useDefaults('Inter', 'Inter Dark')
+
+        const pending = { then() {} }
+        const child = <TextInput testID="input" />
+        const Suspender = ({ freeze }: { freeze: boolean }) => {
+            if (freeze) {
+                throw pending
+            }
+
+            return child
+        }
+        const App = ({ freeze }: { freeze: boolean }) => (
+            <React.Suspense fallback={null}>
+                <Suspender freeze={freeze} />
+            </React.Suspense>
+        )
+        const { getStylesFromId, rerender } = renderUniwind(<App freeze={false} />)
+        expect(getStylesFromId('input').fontFamily).toEqual('Inter')
+
+        rerender(<App freeze />)
+        act(() => Uniwind.setTheme('dark'))
+        rerender(<App freeze={false} />)
+        expect(getStylesFromId('input').fontFamily).toEqual('Inter Dark')
+    })
 })

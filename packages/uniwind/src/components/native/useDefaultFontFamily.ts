@@ -23,10 +23,18 @@ export const useDefaultFontFamily = () => {
     const uniwindContext = useUniwindContext()
     const hasTextAncestor = use(TextAncestorContext)
     const [_, rerender] = useReducer(() => ({}), {})
+    const renderedSnapshot = UniwindListener.getSnapshot(dependencies)
 
     useLayoutEffect(() => {
         if (!hasTextAncestor) {
-            return UniwindListener.subscribe(rerender, dependencies)
+            const dispose = UniwindListener.subscribe(rerender, dependencies)
+
+            // Activity and Suspense can reconnect effects without rendering.
+            if (renderedSnapshot !== UniwindListener.getSnapshot(dependencies)) {
+                rerender()
+            }
+
+            return dispose
         }
     }, [hasTextAncestor])
 
