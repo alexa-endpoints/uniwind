@@ -1,3 +1,4 @@
+// Every name in RAW_COMPONENT_NAMES: all wrapped components but the deprecated SafeAreaView.
 export {
     ActivityIndicator,
     Button,
@@ -12,6 +13,8 @@ export {
     ScrollView,
     SectionList,
     Switch,
+    Text,
+    TextInput,
     TouchableHighlight,
     TouchableNativeFeedback,
     TouchableOpacity,

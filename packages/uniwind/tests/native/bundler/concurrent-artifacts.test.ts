@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { projectArtifactPath, transform } from '../../../src/bundler/adapters/metro/transformer'
+import { UniwindBundlerConfig } from '../../../src/bundler/config'
 
 jest.mock('metro-transform-worker', () => ({
     transform: async (_config: unknown, _projectRoot: string, _filePath: string, data: Buffer) => ({
@@ -19,14 +20,19 @@ const createProject = (directory: string, name: string, className: string, ...cs
     return cssPath
 }
 
+const uniwindConfig = (cssPath: string, extraThemes: Array<string>) => ({
+    cssEntryFile: path.relative(process.cwd(), cssPath),
+    dtsFile: path.join(path.dirname(cssPath), 'uniwind-types.d.ts'),
+    extraThemes,
+})
+
+const artifactPathOf = (cssPath: string, extraThemes: Array<string>) =>
+    projectArtifactPath(UniwindBundlerConfig.fromMetroConfig(uniwindConfig(cssPath, extraThemes)))
+
 const transformCSS = (cssPath: string, extraThemes: Array<string>) =>
     transform(
         {
-            uniwind: {
-                cssEntryFile: path.relative(process.cwd(), cssPath),
-                dtsFile: path.join(path.dirname(cssPath), 'uniwind-types.d.ts'),
-                extraThemes,
-            },
+            uniwind: uniwindConfig(cssPath, extraThemes),
         } as unknown as Parameters<typeof transform>[0],
         process.cwd(),
         path.relative(process.cwd(), cssPath),
@@ -64,10 +70,10 @@ describe('concurrent project artifacts', () => {
                     expect(code).toContain('"className": "bg-blue-500"')
                 }
             })
-            expect(projectArtifactPath(oceanCSSPath)).not.toBe(projectArtifactPath(plainCSSPath))
+            expect(artifactPathOf(oceanCSSPath, ['ocean'])).not.toBe(artifactPathOf(plainCSSPath, []))
         } finally {
             rmSync(directory, { force: true, recursive: true })
-            ;[oceanCSSPath, plainCSSPath].map(projectArtifactPath).filter(existsSync).forEach(artifactPath => {
+            ;[artifactPathOf(oceanCSSPath, ['ocean']), artifactPathOf(plainCSSPath, [])].filter(existsSync).forEach(artifactPath => {
                 rmSync(artifactPath, { force: true })
             })
         }
@@ -110,7 +116,7 @@ describe('concurrent project artifacts', () => {
             })
         } finally {
             rmSync(directory, { force: true, recursive: true })
-            ;[oceanCSSPath, forestCSSPath].map(projectArtifactPath).filter(existsSync).forEach(artifactPath => {
+            ;[artifactPathOf(oceanCSSPath, ['ocean']), artifactPathOf(forestCSSPath, ['forest'])].filter(existsSync).forEach(artifactPath => {
                 rmSync(artifactPath, { force: true })
             })
         }

@@ -44,6 +44,7 @@ module.exports = withUniwindConfig(config, {
   dtsFile: './uniwind-types.d.ts',        // Optional — TypeScript types output path
   debug: true,                            // Optional — log unsupported CSS in dev
   isTV: false,                            // Optional — enable TV platform support
+  defaultFontFamily: true,                // Optional — root Text/TextInput use --default-font-family (default false)
 });
 ```
 

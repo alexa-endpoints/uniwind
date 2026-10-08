@@ -5,7 +5,8 @@
         "rootDir": ".",
         "paths": {
             "uniwind": ["../../dist/module/index.d.ts"],
-            "uniwind/metro": ["../../dist/metro/index.d.ts"]
+            "uniwind/metro": ["../../dist/metro/index.d.ts"],
+            "uniwind/vite": ["../../dist/vite/index.d.ts"]
         }
     },
     "include": [

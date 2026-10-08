@@ -12,17 +12,19 @@ type GenerateArtifactsArgs = {
     cssEntryFile?: string
     dtsFile?: string
     extraThemes: Array<string>
+    defaultFontFamily: boolean
 }
 
 const printHelp = () => {
     console.log([
-        'Usage: uniwind generate-artifacts --css <file> [--theme <name>...] [--dts <file>]',
+        'Usage: uniwind generate-artifacts --css <file> [--theme <name>...] [--dts <file>] [--default-font-family]',
         '',
         'Options:',
-        '  --css <file>      CSS entry file path, e.g. ./global.css',
-        '  --theme <name>    Extra theme name. Can be passed multiple times',
-        '  --dts <file>      Generated TypeScript declarations path',
-        '  --help            Show help',
+        '  --css <file>             CSS entry file path, e.g. ./global.css',
+        '  --theme <name>           Extra theme name. Can be passed multiple times',
+        '  --dts <file>             Generated TypeScript declarations path',
+        '  --default-font-family    Match a config that sets defaultFontFamily',
+        '  --help                   Show help',
     ].join('\n'))
 }
 
@@ -39,6 +41,7 @@ const readValue = (args: Array<string>, index: number, flag: string) => {
 const parseGenerateArtifactsArgs = (args: Array<string>): GenerateArtifactsArgs => {
     const parsed: GenerateArtifactsArgs = {
         extraThemes: [],
+        defaultFontFamily: false,
     }
 
     for (let index = 0; index < args.length; index++) {
@@ -57,6 +60,9 @@ const parseGenerateArtifactsArgs = (args: Array<string>): GenerateArtifactsArgs 
                 parsed.dtsFile = readValue(args, index, arg)
                 index++
                 break
+            case '--default-font-family':
+                parsed.defaultFontFamily = true
+                break
             case '--help':
                 printHelp()
                 process.exit(0)
@@ -74,6 +80,7 @@ const generateArtifacts = async (args: Array<string>) => {
         cssEntryFile: parsed.cssEntryFile!,
         dtsFile: parsed.dtsFile,
         extraThemes: parsed.extraThemes,
+        defaultFontFamily: parsed.defaultFontFamily,
     })
 
     await bundlerConfig.generateArtifacts(cssArtifactPath)

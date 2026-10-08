@@ -215,7 +215,6 @@ describe('buildCSS', () => {
             INSETS_CSS,
             OVERWRITE_CSS,
             EXTRA_UTILITIES_CSS,
-            DEFAULT_FONT_CSS,
             await generateCSSForThemes(THEMES, CSS_ENTRY_FILE),
         ].join('\n')
 
@@ -229,6 +228,21 @@ describe('buildCSS', () => {
 
         expect(fs.statSync(cssFilePath).ino).toBe(inode)
         expect(fs.readFileSync(cssFilePath, 'utf-8')).toBe(expected)
+    }, 60_000)
+
+    test('adds the default font rule before the theme declarations when the config opts in', async () => {
+        const cssFilePath = path.join(workingDir, 'uniwind-default-font.css')
+
+        await buildCSS(THEMES, CSS_ENTRY_FILE, cssFilePath, { defaultFontFamily: true })
+
+        expect(fs.readFileSync(cssFilePath, 'utf-8')).toBe([
+            VARIANTS_CSS,
+            INSETS_CSS,
+            OVERWRITE_CSS,
+            EXTRA_UTILITIES_CSS,
+            DEFAULT_FONT_CSS,
+            await generateCSSForThemes(THEMES, CSS_ENTRY_FILE),
+        ].join('\n'))
     }, 60_000)
 })
 
