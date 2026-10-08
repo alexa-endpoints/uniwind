@@ -10,6 +10,7 @@ import type { JsTransformerConfig, JsTransformOptions } from 'metro-transform-wo
 import { createHash } from 'node:crypto'
 import path from 'path'
 import {
+    getRawComponentNames,
     TRANSFORM_COMPONENTS,
     UPSTREAM_BABEL_TRANSFORMER,
 } from './constants'
@@ -18,12 +19,13 @@ export const cssArtifactPath = path.resolve(__dirname, '../../uniwind.css')
 
 // Projects with different themes, such as a federation host and its remotes, can build at the
 // same time from one installed package. Each compiles against its own artifact rather than the
-// shared stylesheet another build may be rewriting.
-export const projectArtifactPath = (cssPath: string) =>
+// shared stylesheet another build may be rewriting, and configs that generate different content
+// for one entry get different artifacts.
+export const projectArtifactPath = (bundlerConfig: Pick<UniwindBundlerConfig, 'artifactKey'>) =>
     path.resolve(
         __dirname,
         '../../.artifacts',
-        `${createHash('sha256').update(path.resolve(cssPath)).digest('hex').slice(0, 16)}.css`,
+        `${createHash('sha256').update(bundlerConfig.artifactKey).digest('hex').slice(0, 16)}.css`,
     )
 
 // In development, a native CSS entry requires the stylesheets its compile imported, so that they join
@@ -111,11 +113,13 @@ export const transform = async (
 
     if (filePath.endsWith('/components/web/metro-injected.js')) {
         const bundlerConfig = UniwindBundlerConfig.fromMetroConfig(config.uniwind, Platform.Web)
+        // Runtime options are the host's to set; a remote that shares the host's Uniwind leaves them alone.
+        const runtimeOptions = bundlerConfig.isFederationRemote ? '' : `, undefined, ${bundlerConfig.stringifiedRuntimeOptions}`
 
         data = Buffer.from(
             [
                 `import { Uniwind } from 'uniwind';`,
-                `Uniwind.__reinit(() => ({}), ${bundlerConfig.stringifiedThemes});`,
+                `Uniwind.__reinit(() => ({}), ${bundlerConfig.stringifiedThemes}${runtimeOptions});`,
             ].join(''),
             'utf-8',
         )
@@ -149,7 +153,7 @@ export const transform = async (
                 ...options,
                 customTransformOptions: {
                     ...options.customTransformOptions,
-                    [TRANSFORM_COMPONENTS]: true,
+                    [TRANSFORM_COMPONENTS]: getRawComponentNames(config.uniwind.defaultFontFamily === true),
                     [UPSTREAM_BABEL_TRANSFORMER]: config.babelTransformerPath,
                 },
             },
@@ -160,7 +164,7 @@ export const transform = async (
 
     // For an inlined remote, artifact generation stays on the host entry so
     // concurrent workers compiling either stylesheet write identical bytes.
-    const artifactPath = projectArtifactPath(baseBundlerConfig.cssPath)
+    const artifactPath = projectArtifactPath(baseBundlerConfig)
 
     fs.mkdirSync(path.dirname(artifactPath), { recursive: true })
     await baseBundlerConfig.generateArtifacts(artifactPath)
@@ -209,6 +213,8 @@ export const transform = async (
             .update(virtualCode)
             .update('\0')
             .update(bundlerConfig.stringifiedThemes)
+            .update('\0')
+            .update(bundlerConfig.stringifiedRuntimeOptions)
             .digest('hex')
 
     data = Buffer.from(
@@ -224,7 +230,7 @@ export const transform = async (
             : [
                 ...importedStylesheetRequires,
                 `const { Uniwind } = require('uniwind');`,
-                `Uniwind.__reinit(rt => ${virtualCode}, ${bundlerConfig.stringifiedThemes}, '${nativeStylesFingerprint}');`,
+                `Uniwind.__reinit(rt => ${virtualCode}, ${bundlerConfig.stringifiedThemes}, '${nativeStylesFingerprint}', ${bundlerConfig.stringifiedRuntimeOptions});`,
             ].join(''),
         'utf-8',
     )

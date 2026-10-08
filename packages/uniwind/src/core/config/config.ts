@@ -2,7 +2,7 @@ import { StyleDependency } from '../../common/consts'
 import { arrayEquals } from '../../common/utils'
 import { UniwindListener } from '../listener'
 import { Logger } from '../logger'
-import type { CSSVariables, GenerateStyleSheetsCallback, ThemeName } from '../types'
+import type { CSSVariables, GenerateStyleSheetsCallback, ThemeName, UniwindRuntimeOptions } from '../types'
 import { getWebVariable, toWebValue } from '../web'
 import { UniwindConfigBuilder as UniwindConfigBuilderBase } from './config.common'
 
@@ -61,9 +61,14 @@ class UniwindConfigBuilder extends UniwindConfigBuilderBase {
         UniwindListener.notify([StyleDependency.Variables])
     }
 
-    protected __reinit(generateStyleSheetCallback: GenerateStyleSheetsCallback, themes: Array<string>) {
+    protected __reinit(
+        generateStyleSheetCallback: GenerateStyleSheetsCallback,
+        themes: Array<string>,
+        stylesFingerprint?: string,
+        options?: UniwindRuntimeOptions,
+    ) {
         const oldThemes = this.themes
-        super.__reinit(generateStyleSheetCallback, themes)
+        super.__reinit(generateStyleSheetCallback, themes, stylesFingerprint, options)
 
         if (arrayEquals(themes, oldThemes)) {
             return

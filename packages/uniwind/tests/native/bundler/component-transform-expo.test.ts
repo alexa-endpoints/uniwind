@@ -3,6 +3,7 @@ import type * as ExpoMetroWorker from '@expo/metro-config/build/transform-worker
 import type { JsTransformerConfig } from '@expo/metro/metro-transform-worker'
 import path from 'node:path'
 import {
+    getRawComponentNames,
     TRANSFORM_COMPONENTS,
     UPSTREAM_BABEL_TRANSFORMER,
 } from '../../../src/bundler/adapters/metro/constants'
@@ -42,10 +43,12 @@ const upstreamTransformers = [
 const transform = async (
     source: string,
     {
+        components = getRawComponentNames(false),
         filename,
         reactCompiler,
         upstreamTransformerPath,
     }: {
+        components?: ReadonlyArray<string>
         filename: string
         reactCompiler: boolean
         upstreamTransformerPath: string
@@ -64,7 +67,7 @@ const transform = async (
             customTransformOptions: {
                 engine: 'hermes',
                 reactCompiler,
-                [TRANSFORM_COMPONENTS]: true,
+                [TRANSFORM_COMPONENTS]: components,
                 [UPSTREAM_BABEL_TRANSFORMER]: upstreamTransformerPath,
             },
             dev: true,
@@ -218,6 +221,37 @@ describe.each(upstreamTransformers)(
                         /createElement\(\s*_reactNative\d*\.View\s*,\s*\{\s*className:/,
                     )
                 })
+
+                test.each([false, true])(
+                    'compiles classless Text to the raw component only while defaultFontFamily is off (%s)',
+                    async defaultFontFamily => {
+                        const code = await transform(
+                            `
+                                import * as React from "react";
+                                import { Text, View } from "react-native";
+
+                                export function Fixture() {
+                                    return React.createElement(View, null, React.createElement(Text, null, "Hello"));
+                                }
+                            `,
+                            {
+                                components: getRawComponentNames(defaultFontFamily),
+                                filename: path.join(
+                                    PROJECT_ROOT,
+                                    'node_modules',
+                                    '.uniwind-transform-fixtures',
+                                    `text-${defaultFontFamily}.js`,
+                                ),
+                                reactCompiler,
+                                upstreamTransformerPath,
+                            },
+                        )
+
+                        expect(code).not.toMatch(malformedRawComponentPattern)
+                        expect(countRawComponentReferences(code, 'View')).toBe(1)
+                        expect(countRawComponentReferences(code, 'Text')).toBe(defaultFontFamily ? 0 : 1)
+                    },
+                )
             },
         )
     },

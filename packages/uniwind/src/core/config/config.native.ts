@@ -4,7 +4,7 @@ import { UniwindListener } from '../listener'
 import { Logger } from '../logger'
 import { UniwindStore } from '../native'
 import { createVarGetter } from '../native/native-utils'
-import type { CSSVariables, GenerateStyleSheetsCallback, ThemeName, Vars } from '../types'
+import type { CSSVariables, GenerateStyleSheetsCallback, ThemeName, UniwindRuntimeOptions, Vars } from '../types'
 import { UniwindConfigBuilder as UniwindConfigBuilderBase } from './config.common'
 
 class UniwindConfigBuilder extends UniwindConfigBuilderBase {
@@ -45,14 +45,17 @@ class UniwindConfigBuilder extends UniwindConfigBuilderBase {
         generateStyleSheetCallback: GenerateStyleSheetsCallback,
         themes: Array<string>,
         stylesFingerprint?: string,
+        options?: UniwindRuntimeOptions,
     ) {
         UniwindStore.validateRemoteThemes(themes)
 
+        // The fingerprint covers the runtime options too.
         if (__DEV__ && stylesFingerprint !== undefined && stylesFingerprint === this.stylesFingerprint) {
             return
         }
 
-        super.__reinit(generateStyleSheetCallback, themes)
+        // Apply the options first: the store notifies every subscriber, and those re-render with them.
+        super.__reinit(generateStyleSheetCallback, themes, stylesFingerprint, options)
         UniwindStore.reinit(generateStyleSheetCallback, themes)
         this.stylesFingerprint = stylesFingerprint
     }

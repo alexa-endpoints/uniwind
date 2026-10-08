@@ -4,7 +4,8 @@ import { ColorScheme, StyleDependency } from '../../common/consts'
 import type { GetCSSVariable } from '../../hooks/useCSSVariable/useCSSVariable'
 import { getCSSVariable } from '../../hooks/useCSSVariable/useCSSVariable'
 import { UniwindListener } from '../listener'
-import type { CSSVariables, GenerateStyleSheetsCallback, ThemeName } from '../types'
+import { setRuntimeOptions } from '../runtimeOptions'
+import type { CSSVariables, GenerateStyleSheetsCallback, ThemeName, UniwindRuntimeOptions } from '../types'
 
 const SYSTEM_THEME = 'system' as const
 // Platform.constants is not defined in RNW
@@ -122,8 +123,13 @@ export class UniwindConfigBuilder {
         return getCSSVariable(variableName, { scopedTheme: null, rtl: null, variables: null })
     }) as GetCSSVariable
 
-    protected __reinit(_: GenerateStyleSheetsCallback, themes: Array<string>) {
+    // Hosts pass their runtime options; a registration without them leaves the current ones.
+    protected __reinit(_: GenerateStyleSheetsCallback, themes: Array<string>, _stylesFingerprint?: string, options?: UniwindRuntimeOptions) {
         this._themes = themes
+
+        if (options !== undefined) {
+            setRuntimeOptions(options)
+        }
     }
 
     protected onThemeChange() {
