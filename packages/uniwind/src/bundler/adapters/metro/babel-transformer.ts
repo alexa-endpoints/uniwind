@@ -34,6 +34,23 @@ const getTransformer = (transformerPath: string) => {
     return transformer
 }
 
+// Babel caches plugin instances by options identity, so reuse one options object per component list
+// instead of rebuilding the component transform for every file.
+const componentTransformOptionsCache = new Map<string, { components: ReadonlyArray<string> }>()
+
+const getComponentTransformOptions = (components: ReadonlyArray<string>) => {
+    const key = components.join(',')
+    const cached = componentTransformOptionsCache.get(key)
+    if (cached) {
+        return cached
+    }
+
+    const options = { components: [...components] }
+    componentTransformOptionsCache.set(key, options)
+
+    return options
+}
+
 export const transform = (args: BabelTransformerArgs) => {
     const customOptions = args.options.customTransformOptions ?? {}
     const upstreamPath = customOptions[UPSTREAM_BABEL_TRANSFORMER]
@@ -43,7 +60,7 @@ export const transform = (args: BabelTransformerArgs) => {
     }
 
     const {
-        [TRANSFORM_COMPONENTS]: shouldTransform,
+        [TRANSFORM_COMPONENTS]: components,
         [UPSTREAM_BABEL_TRANSFORMER]: _upstreamPath,
         ...upstreamCustomOptions
     } = customOptions
@@ -55,8 +72,8 @@ export const transform = (args: BabelTransformerArgs) => {
             ...args.options,
             customTransformOptions: upstreamCustomOptions,
         },
-        plugins: shouldTransform
-            ? [...args.plugins ?? [], componentTransform]
+        plugins: Array.isArray(components) && components.length > 0
+            ? [...args.plugins ?? [], [componentTransform, getComponentTransformOptions(components)]]
             : args.plugins,
     })
 }
