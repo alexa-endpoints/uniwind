@@ -1,14 +1,21 @@
-import type { NodePath, PluginObj, types as t } from '@babel/core'
+import type { NodePath, PluginObj, PluginPass, types as t } from '@babel/core'
 import {
-    NATIVE_COMPONENT_NAME_SET,
-    type NativeComponentName,
+    CLASSLESS_COMPONENT_NAME_SET,
+    type ClasslessComponentName,
     RAW_COMPONENTS_MODULE,
 } from './constants'
+
+type ComponentTransformState = PluginPass & {
+    opts: {
+        // Enabled components, resolved from `experimental.optimizeClasslessComponents`.
+        components?: ReadonlyArray<string>
+    }
+}
 
 const REACT_NATIVE_MODULE = 'react-native'
 const REACT_MODULE = 'react'
 
-const isNativeComponentName = (name: string): name is NativeComponentName => NATIVE_COMPONENT_NAME_SET.has(name)
+const isClasslessComponentName = (name: string): name is ClasslessComponentName => CLASSLESS_COMPONENT_NAME_SET.has(name)
 
 const getImportSource = (path: NodePath) =>
     path.parentPath?.isImportDeclaration()
@@ -124,7 +131,7 @@ const resolveDestructuredComponent = (
         }
 
         const componentName = getObjectPropertyName(property)
-        if (componentName && isNativeComponentName(componentName)) {
+        if (componentName && isClasslessComponentName(componentName)) {
             return componentName
         }
     }
@@ -135,7 +142,7 @@ const resolveDestructuredComponent = (
 const resolveComponentReference = (
     path: NodePath | null | undefined,
     visited = new Set<t.Node>(),
-): NativeComponentName | undefined => {
+): ClasslessComponentName | undefined => {
     if (!path) {
         return undefined
     }
@@ -163,7 +170,7 @@ const resolveComponentReference = (
         if (
             !Array.isArray(property)
             && (property.isIdentifier() || property.isJSXIdentifier())
-            && isNativeComponentName(property.node.name)
+            && isClasslessComponentName(property.node.name)
             && !Array.isArray(object)
             && isModuleNamespace(object, REACT_NATIVE_MODULE, visited)
         ) {
@@ -186,7 +193,7 @@ const resolveComponentReference = (
     if (binding.path.isImportSpecifier() && getImportSource(binding.path) === REACT_NATIVE_MODULE) {
         const importedName = getImportedName(binding.path)
 
-        return importedName && isNativeComponentName(importedName)
+        return importedName && isClasslessComponentName(importedName)
             ? importedName
             : undefined
     }
@@ -301,12 +308,28 @@ const isReactCreateElement = (path: NodePath<t.CallExpression>) => {
         )
 }
 
-export const componentTransform = ({ types }: { types: typeof t }): PluginObj => ({
+const getEnabledComponents = ({ opts }: ComponentTransformState) => {
+    if (!Array.isArray(opts.components)) {
+        throw new Error('Uniwind: The component transform requires the enabled component list')
+    }
+
+    return new Set(opts.components)
+}
+
+export const componentTransform = ({ types }: { types: typeof t }): PluginObj<ComponentTransformState> => ({
     name: 'uniwind-component-transform',
     visitor: {
-        Program(programPath) {
-            const rawIdentifiers = new Map<NativeComponentName, t.Identifier>()
-            const getRawIdentifier = (componentName: NativeComponentName) => {
+        Program(programPath, state) {
+            const enabledComponents = getEnabledComponents(state)
+            const resolveEnabledComponent = (path: NodePath) => {
+                const componentName = resolveComponentReference(path)
+
+                return componentName && enabledComponents.has(componentName)
+                    ? componentName
+                    : undefined
+            }
+            const rawIdentifiers = new Map<ClasslessComponentName, t.Identifier>()
+            const getRawIdentifier = (componentName: ClasslessComponentName) => {
                 const existing = rawIdentifiers.get(componentName)
                 if (existing) {
                     return existing
@@ -328,7 +351,7 @@ export const componentTransform = ({ types }: { types: typeof t }): PluginObj =>
                     const name = openingElement.get('name')
                     const componentName = Array.isArray(name)
                         ? undefined
-                        : resolveComponentReference(name)
+                        : resolveEnabledComponent(name)
                     if (!componentName) {
                         return
                     }
@@ -356,7 +379,7 @@ export const componentTransform = ({ types }: { types: typeof t }): PluginObj =>
                         return
                     }
 
-                    const componentName = resolveComponentReference(component)
+                    const componentName = resolveEnabledComponent(component)
                     if (!componentName) {
                         return
                     }

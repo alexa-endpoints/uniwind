@@ -1,17 +1,13 @@
-import { getDefaultConfig, unstable_transformerPath } from '@expo/metro-config'
-import type * as ExpoMetroWorker from '@expo/metro-config/build/transform-worker/transform-worker'
+import { getDefaultConfig } from '@expo/metro-config'
 import type { JsTransformerConfig } from '@expo/metro/metro-transform-worker'
 import path from 'node:path'
 import {
-    TRANSFORM_COMPONENTS,
-    UPSTREAM_BABEL_TRANSFORMER,
+    CLASSLESS_COMPONENT_NAMES,
+    type ClasslessComponentName,
 } from '../../../src/bundler/adapters/metro/constants'
+import { transform as uniwindTransform } from '../../../src/bundler/adapters/metro/transformer'
 
 const PROJECT_ROOT = path.resolve(__dirname, '../../../../..')
-const UNIWIND_BABEL_TRANSFORMER = require.resolve(
-    '../../../src/bundler/adapters/metro/babel-transformer',
-)
-const expoWorker = require(unstable_transformerPath) as typeof ExpoMetroWorker
 
 const getBabelTransformerPath = (config: {
     transformer?: {
@@ -42,20 +38,29 @@ const upstreamTransformers = [
 const transform = async (
     source: string,
     {
+        components = CLASSLESS_COMPONENT_NAMES,
         filename,
         reactCompiler,
         upstreamTransformerPath,
     }: {
+        components?: ReadonlyArray<ClasslessComponentName>
         filename: string
         reactCompiler: boolean
         upstreamTransformerPath: string
     },
 ) => {
+    // Go through Uniwind's Metro transformer so the Expo worker, the classless gate and the
+    // Babel dispatch all see the serialized component list, as they do in a Metro worker.
     const transformerConfig = {
         ...getDefaultConfig(PROJECT_ROOT).transformer as JsTransformerConfig,
-        babelTransformerPath: UNIWIND_BABEL_TRANSFORMER,
-    }
-    const result = await expoWorker.transform(
+        babelTransformerPath: upstreamTransformerPath,
+        uniwind: {
+            cssEntryFile: './global.css',
+            isExpoProject: true,
+            optimizedClasslessComponents: [...components],
+        },
+    } as unknown as Parameters<typeof uniwindTransform>[0]
+    const result: Awaited<ReturnType<typeof uniwindTransform>> = await uniwindTransform(
         transformerConfig,
         PROJECT_ROOT,
         filename,
@@ -64,8 +69,6 @@ const transform = async (
             customTransformOptions: {
                 engine: 'hermes',
                 reactCompiler,
-                [TRANSFORM_COMPONENTS]: true,
-                [UPSTREAM_BABEL_TRANSFORMER]: upstreamTransformerPath,
             },
             dev: true,
             experimentalImportSupport: true,
@@ -183,6 +186,47 @@ describe.each(upstreamTransformers)(
                                 /createElement\(\s*View\s*,\s*\{\s*className:/,
                             )
                         }
+                    },
+                )
+
+                test.each(fixtures)(
+                    'rewrites only the enabled components for $name',
+                    async ({ filename, source }) => {
+                        const code = await transform(source, {
+                            components: ['View'],
+                            filename: path.join(
+                                PROJECT_ROOT,
+                                'node_modules',
+                                '.uniwind-transform-fixtures',
+                                filename,
+                            ),
+                            reactCompiler,
+                            upstreamTransformerPath,
+                        })
+
+                        expect(code).not.toMatch(malformedRawComponentPattern)
+                        expect(countRawComponentReferences(code, 'View')).toBe(2)
+                        expect(countRawComponentReferences(code, 'Text')).toBe(0)
+                    },
+                )
+
+                test.each(fixtures)(
+                    'keeps every component on the wrapped path for an empty list with $name',
+                    async ({ filename, source }) => {
+                        const code = await transform(source, {
+                            components: [],
+                            filename: path.join(
+                                PROJECT_ROOT,
+                                'node_modules',
+                                '.uniwind-transform-fixtures',
+                                filename,
+                            ),
+                            reactCompiler,
+                            upstreamTransformerPath,
+                        })
+
+                        expect(code).not.toContain('_uniwindInternalRawComponents')
+                        expect(code).not.toContain('raw-components')
                     },
                 )
 
