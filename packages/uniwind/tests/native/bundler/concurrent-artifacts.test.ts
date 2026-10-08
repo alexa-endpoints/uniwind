@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { projectArtifactPath, transform } from '../../../src/bundler/adapters/metro/transformer'
 import { UniwindBundlerConfig } from '../../../src/bundler/config'
@@ -8,6 +8,8 @@ jest.mock('metro-transform-worker', () => ({
         output: [{ data: { code: data.toString('utf8') } }],
     }),
 }))
+
+jest.mock('../../../src/bundler/adapters/metro/artifact-paths', () => require('./temporaryArtifactPaths'))
 
 const createProject = (directory: string, name: string, className: string, ...cssLines: Array<string>) => {
     const projectDirectory = path.join(directory, name)
@@ -73,9 +75,6 @@ describe('concurrent project artifacts', () => {
             expect(artifactPathOf(oceanCSSPath, ['ocean'])).not.toBe(artifactPathOf(plainCSSPath, []))
         } finally {
             rmSync(directory, { force: true, recursive: true })
-            ;[artifactPathOf(oceanCSSPath, ['ocean']), artifactPathOf(plainCSSPath, [])].filter(existsSync).forEach(artifactPath => {
-                rmSync(artifactPath, { force: true })
-            })
         }
     })
 
@@ -116,9 +115,6 @@ describe('concurrent project artifacts', () => {
             })
         } finally {
             rmSync(directory, { force: true, recursive: true })
-            ;[artifactPathOf(oceanCSSPath, ['ocean']), artifactPathOf(forestCSSPath, ['forest'])].filter(existsSync).forEach(artifactPath => {
-                rmSync(artifactPath, { force: true })
-            })
         }
     })
 })

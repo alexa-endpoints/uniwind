@@ -1,6 +1,7 @@
 import { writeFileAtomicSync } from '@/bundler/artifacts/writeFileAtomic'
 import { UniwindBundlerConfig } from '@/bundler/config'
 import { compileCSS } from '@/bundler/css-compiler'
+import { Logger } from '@/bundler/logger'
 import type { UniwindMetroConfig } from '@/bundler/types'
 import { Platform } from '@/common/consts'
 import type * as ExpoMetroConfig from '@expo/metro-config'
@@ -9,24 +10,68 @@ import type * as MetroTransformWorker from 'metro-transform-worker'
 import type { JsTransformerConfig, JsTransformOptions } from 'metro-transform-worker'
 import { createHash } from 'node:crypto'
 import path from 'path'
+import { packageDirectory, projectArtifactsDirectory, sharedArtifactPath } from './artifact-paths'
 import {
     getRawComponentNames,
     TRANSFORM_COMPONENTS,
     UPSTREAM_BABEL_TRANSFORMER,
 } from './constants'
 
-export const cssArtifactPath = path.resolve(__dirname, '../../uniwind.css')
-
-// Projects with different themes, such as a federation host and its remotes, can build at the
-// same time from one installed package. Each compiles against its own artifact rather than the
-// shared stylesheet another build may be rewriting, and configs that generate different content
-// for one entry get different artifacts.
+// Each project compiles against its own artifact instead of the shared stylesheet, which another
+// build may be rewriting. The key covers the entry and every config input that changes the artifact,
+// so different entries (a federation host and its remotes declare different theme variables) and one
+// entry built with different configs never compile against each other's artifact.
 export const projectArtifactPath = (bundlerConfig: Pick<UniwindBundlerConfig, 'artifactKey'>) =>
-    path.resolve(
-        __dirname,
-        '../../.artifacts',
+    path.join(
+        projectArtifactsDirectory,
         `${createHash('sha256').update(bundlerConfig.artifactKey).digest('hex').slice(0, 16)}.css`,
     )
+
+// A package directory that can't be written, such as a read-only install.
+const READ_ONLY_ERRORS = new Set(['EACCES', 'EPERM', 'EROFS'])
+
+// The artifact content this process last copied to the shared stylesheet, per project artifact.
+const sharedCopies = new Map<string, string>()
+let hasWarnedAboutSharedCopy = false
+
+// Tools that import the package stylesheet directly still see a generated one: a last-writer copy of
+// the project artifact that changed last. Every rewrite is a file change that watchers, Metro's
+// included, react to, so the copy is written only when this project's artifact changed since this
+// process last copied it and the file differs. Metro builds don't depend on its content, so the copy
+// is best-effort.
+const copyToSharedArtifact = (artifactPath: string) => {
+    const content = fs.readFileSync(artifactPath, 'utf-8')
+
+    if (sharedCopies.get(artifactPath) === content) {
+        return
+    }
+
+    const sharedContent = fs.existsSync(sharedArtifactPath)
+        ? fs.readFileSync(sharedArtifactPath, 'utf-8')
+        : undefined
+
+    if (sharedContent !== content) {
+        try {
+            writeFileAtomicSync(sharedArtifactPath, content)
+        } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code ?? ''
+
+            if (!READ_ONLY_ERRORS.has(code)) {
+                throw error
+            }
+
+            if (!hasWarnedAboutSharedCopy) {
+                hasWarnedAboutSharedCopy = true
+                Logger.warn(
+                    `Couldn't update ${sharedArtifactPath} (${code}). Metro compiles each project against its own stylesheet, so only tools that import this one directly may see an outdated copy.`,
+                )
+            }
+        }
+    }
+
+    // Recorded after a refused write too, so the copy isn't retried until the artifact changes.
+    sharedCopies.set(artifactPath, content)
+}
 
 // In development, a native CSS entry requires the stylesheets its compile imported, so that they join
 // Metro's graph and editing one, even to change a single token, re-runs the entry's uncached transform.
@@ -37,7 +82,7 @@ export const projectArtifactPath = (bundlerConfig: Pick<UniwindBundlerConfig, 'a
 const isWatchedStylesheet = (stylesheet: string) =>
     stylesheet.endsWith('.css')
     && !stylesheet.includes(`${path.sep}node_modules${path.sep}`)
-    && !stylesheet.startsWith(`${path.dirname(cssArtifactPath)}${path.sep}`)
+    && !stylesheet.startsWith(`${packageDirectory}${path.sep}`)
 
 // Cache workers separately for Expo (`true`) and plain Metro (`false`) configs.
 const workerCache = new Map<boolean, typeof MetroTransformWorker>()
@@ -168,8 +213,7 @@ export const transform = async (
 
     fs.mkdirSync(path.dirname(artifactPath), { recursive: true })
     await baseBundlerConfig.generateArtifacts(artifactPath)
-    // Tools that import the package stylesheet directly still see a generated one.
-    writeFileAtomicSync(cssArtifactPath, fs.readFileSync(artifactPath, 'utf-8'))
+    copyToSharedArtifact(artifactPath)
 
     const bundlerConfig = inlinedRemote === undefined
         ? baseBundlerConfig
