@@ -74,8 +74,9 @@ type UniwindFederationConfig =
 type ExperimentalOptions = {
     federation?: UniwindFederationConfig
     /**
-     * Rewrites statically classless React Native elements to raw components. The deprecated
-     * `SafeAreaView` always keeps its wrapper.
+     * On native, compiles statically classless built-in React Native elements to the raw components,
+     * React Native's own exports. Elements that may receive a class keep their wrapper, web output is
+     * unchanged, and the deprecated `SafeAreaView` always keeps its wrapper.
      *
      * - `true` optimizes the default set: every component the predicate's `isDefault` holds for. While
      *   `defaultFontFamily` is on, that leaves out `Text` and `TextInput`, because only their wrappers
@@ -105,9 +106,25 @@ type UniwindConfig = {
     dtsFile?: string
     /**
      * Starts root `Text` and `TextInput` from the theme's `--default-font-family`, which Tailwind
-     * derives from `--font-sans`, on native and web. React Native resolves a single family name,
-     * so on native a fallback list keeps the platform default. A federated remote should match its
-     * host: the host's setting applies at runtime.
+     * derives from `--font-sans`, on native and web. `className` and `style` still override it, and
+     * nested `Text` inherits from its parent instead.
+     *
+     * - React Native resolves a single family name, so on native a fallback list keeps the platform
+     *   default. So does a CSS-wide keyword such as `initial`, which on web keeps React Native Web's
+     *   System font.
+     * - On web the default sits in `@layer base`, so font utilities win only when the CSS entry declares
+     *   Tailwind's layer order before it imports `uniwind`; `@import 'tailwindcss'` does.
+     * - On web the token resolves once, on the root, so a `ScopedTheme` or `ScopedVariables` override
+     *   of `--font-sans` reaches root text only on native. A scoped override meant for web sets
+     *   `--default-font-family` itself.
+     * - With `experimental.optimizeClasslessComponents: true`, classless `Text` and `TextInput` keep
+     *   their wrappers, because only those apply the default font.
+     * - A federated remote should match its host: the host's setting applies at runtime, to remote text
+     *   only when the remote shares `uniwind/components` and its subpaths with the host. Text rendered by
+     *   a remote's own copy of the components renders as with the option off.
+     *
+     * When off, Uniwind adds no default font, and `Text` and `TextInput` render as they did before the
+     * option existed.
      * @default false
      */
     defaultFontFamily?: boolean

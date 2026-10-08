@@ -88,7 +88,7 @@ export const getRawComponentsPath = () =>
     )
 
 // The raw-component module re-exports only the enabled components, so a disabled one is never read
-// through it (Fast Refresh reads every export of a module it registers).
+// through it (Fast Refresh, and Metro's non-live import/export transform, read every export).
 export const getRawComponentsSource = (components: ReadonlyArray<string>) => {
     const exports = components.filter(component => CLASSLESS_COMPONENT_NAME_SET.has(component))
 
