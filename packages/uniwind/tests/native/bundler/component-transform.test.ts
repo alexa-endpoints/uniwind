@@ -1,11 +1,12 @@
 import { transformSync, traverse } from '@babel/core'
 import { componentTransform } from '../../../src/bundler/adapters/metro/component-transform'
 import {
+    CLASSLESS_COMPONENT_EXCLUSIONS,
+    CLASSLESS_COMPONENT_NAMES,
+    type ClasslessComponentName,
     DEFAULT_FONT_COMPONENT_NAMES,
-    getRawComponentNames,
-    RAW_COMPONENT_NAMES,
+    getDefaultClasslessComponentNames,
     RAW_COMPONENTS_MODULE,
-    type RawComponentName,
 } from '../../../src/bundler/adapters/metro/constants'
 import * as rawComponents from '../../../src/bundler/adapters/metro/raw-components'
 import { shouldTransformClasslessComponents } from '../../../src/bundler/adapters/metro/transformer'
@@ -70,9 +71,12 @@ const CLASS_PROPS_BY_COMPONENT = {
         'ListHeaderComponentClassName',
         'endFillColorClassName',
     ],
-} as const satisfies Record<RawComponentName, ReadonlyArray<string>>
+} as const satisfies Record<ClasslessComponentName, ReadonlyArray<string>>
 
-const runTransform = (source: string, components: ReadonlyArray<string> = getRawComponentNames(false)) => {
+const runTransform = (
+    source: string,
+    components: ReadonlyArray<string> = CLASSLESS_COMPONENT_NAMES,
+) => {
     const result = transformSync(source, {
         ast: true,
         babelrc: false,
@@ -94,15 +98,18 @@ const runTransform = (source: string, components: ReadonlyArray<string> = getRaw
     }
 }
 
-const transform = (source: string, components?: ReadonlyArray<string>) => runTransform(source, components).code
+const transform = (
+    source: string,
+    components?: ReadonlyArray<string>,
+) => runTransform(source, components).code
 
-test('the private raw-component module exports exactly the raw-eligible components', () => {
-    expect(Object.keys(rawComponents).sort()).toEqual([...RAW_COMPONENT_NAMES].sort())
+test('the private raw-component module exports exactly the eligible components', () => {
+    expect(Object.keys(rawComponents).sort()).toEqual([...CLASSLESS_COMPONENT_NAMES].sort())
 })
 
-describe.each(RAW_COMPONENT_NAMES)('%s compile-time dispatch', componentName => {
+describe.each(CLASSLESS_COMPONENT_NAMES)('%s compile-time dispatch', componentName => {
     test('is exported by the private raw-component module', () => {
-        expect((rawComponents as Record<string, unknown>)[componentName]).toBeDefined()
+        expect(rawComponents[componentName]).toBeDefined()
     })
 
     test('rewrites statically classless JSX to the raw component', () => {
@@ -144,12 +151,12 @@ describe.each(RAW_COMPONENT_NAMES)('%s compile-time dispatch', componentName => 
 })
 
 describe.each(DEFAULT_FONT_COMPONENT_NAMES)('%s with the default font family', componentName => {
-    test('compiles to the raw component while the option is off', () => {
-        expect(getRawComponentNames(false)).toContain(componentName)
+    test('is in the default set while the option is off', () => {
+        expect(getDefaultClasslessComponentNames({ defaultFontFamily: false })).toContain(componentName)
     })
 
-    test('keeps statically classless JSX on the Uniwind wrapper path while the option is on', () => {
-        const components = getRawComponentNames(true)
+    test('keeps statically classless JSX on the Uniwind wrapper path for the default set while the option is on', () => {
+        const components = getDefaultClasslessComponentNames({ defaultFontFamily: true })
         const code = transform(
             `
             import { ${componentName}, View } from 'react-native'
@@ -179,34 +186,23 @@ test('rewrites only the enabled components', () => {
     expect(code).toContain('<View><_RawText>Hello</_RawText></View>')
 })
 
-test('requires the enabled component list', () => {
-    expect(() =>
-        transformSync(`import { View } from 'react-native'`, {
-            babelrc: false,
-            configFile: false,
-            filename: 'Component.tsx',
-            plugins: [componentTransform],
-        })
-    ).toThrow('Uniwind: The component transform requires the enabled component list')
-})
-
 test('uses raw components only for provably classless JSX', () => {
     const code = transform(`
-        import { Image, View } from 'react-native'
+        import { Text, View } from 'react-native'
 
         export const Component = () => (
             <View style={{ flex: 1 }}>
-                <Image className="rounded" source={source} />
-                <Image style={{ width: 10 }} source={source} />
+                <Text className="font-bold">Styled</Text>
+                <Text style={{ color: 'black' }}>Raw</Text>
             </View>
         )
     `)
 
     expect(code).toContain(`from "${RAW_COMPONENTS_MODULE}"`)
-    expect(code).toMatch(/import \{ View as _RawView, Image as _RawImage \}/)
+    expect(code).toMatch(/import \{ View as _RawView, Text as _RawText \}/)
     expect(code).toContain('<_RawView')
-    expect(code).toContain('<Image className="rounded"')
-    expect(code).toContain('<_RawImage style=')
+    expect(code).toContain('<Text className="font-bold">')
+    expect(code).toContain('<_RawText style=')
 })
 
 test('keeps elements with spreads on the wrapped component path', () => {
@@ -234,31 +230,31 @@ test('supports namespace imports and constant aliases', () => {
 
         export const Component = () => (
             <>
-                <RN.Switch />
+                <RN.Text />
                 <Alias />
             </>
         )
     `)
 
-    expect(code).toMatch(/import \{ Switch as _RawSwitch, View as _RawView \}/)
-    expect(code).toContain('<_RawSwitch />')
+    expect(code).toMatch(/import \{ Text as _RawText, View as _RawView \}/)
+    expect(code).toContain('<_RawText />')
     expect(code).toContain('<_RawView />')
 })
 
 test('supports CommonJS destructuring', () => {
     const code = transform(`
-        const { Switch: Toggle, View } = require('react-native')
+        const { Text: Label, View } = require('react-native')
 
         export const Component = () => (
             <View>
-                <Toggle />
+                <Label />
             </View>
         )
     `)
 
-    expect(code).toMatch(/import \{ View as _RawView, Switch as _RawSwitch \}/)
+    expect(code).toMatch(/import \{ View as _RawView, Text as _RawText \}/)
     expect(code).toContain('<_RawView>')
-    expect(code).toContain('<_RawSwitch />')
+    expect(code).toContain('<_RawText />')
 })
 
 test('optimizes only createElement calls with static classless props', () => {
@@ -363,60 +359,236 @@ test('does not rewrite unsupported React Native exports', () => {
     expect(code).toContain('<StatusBar />')
 })
 
-test('keeps the deprecated SafeAreaView on the Uniwind wrapper path', () => {
-    const code = transform(`
-        import { SafeAreaView } from 'react-native'
+describe.each(CLASSLESS_COMPONENT_EXCLUSIONS)('excluded %s', componentName => {
+    test('keeps statically classless JSX on the Uniwind wrapper path', () => {
+        const code = transform(`
+            import { ${componentName} } from 'react-native'
 
-        export const Component = () => <SafeAreaView testID="component" />
-    `)
+            export const Component = () => <${componentName} testID="component" />
+        `)
 
-    expect(code).not.toContain(RAW_COMPONENTS_MODULE)
-    expect(code).toContain('<SafeAreaView testID="component" />')
-    expect(rawComponents).not.toHaveProperty('SafeAreaView')
-    expect(getRawComponentNames(false)).not.toContain('SafeAreaView')
-    expect(getRawComponentNames(true)).not.toContain('SafeAreaView')
+        expect(code).not.toContain(RAW_COMPONENTS_MODULE)
+        expect(code).toContain(`<${componentName} testID="component" />`)
+    })
+
+    test('is neither eligible nor exported by the private raw-component module', () => {
+        expect(CLASSLESS_COMPONENT_NAMES).not.toContain(componentName)
+        expect(rawComponents).not.toHaveProperty(componentName)
+    })
+
     // Even a list that names it cannot send it down the raw path.
-    expect(transform(`import { SafeAreaView } from 'react-native'\nexport const C = () => <SafeAreaView />`, ['SafeAreaView'])).not.toContain(
-        RAW_COMPONENTS_MODULE,
-    )
+    test('keeps the Uniwind wrapper when a component list names it', () => {
+        const code = transform(
+            `
+            import { ${componentName} } from 'react-native'
+
+            export const Component = () => <${componentName} />
+        `,
+            [componentName],
+        )
+
+        expect(code).not.toContain(RAW_COMPONENTS_MODULE)
+        expect(code).toContain(`<${componentName} />`)
+    })
 })
 
-test('requires the Metro experimental option', () => {
+describe('with a partial component list', () => {
+    const referenceShapes = [
+        {
+            name: 'named imports',
+            source: `
+                import { Text, View } from 'react-native'
+
+                export const Component = () => (
+                    <View>
+                        <Text />
+                    </View>
+                )
+            `,
+            raw: ['<_RawView>'],
+            wrapped: ['<Text />'],
+        },
+        {
+            name: 'namespace imports',
+            source: `
+                import * as RN from 'react-native'
+
+                export const Component = () => (
+                    <RN.View>
+                        <RN.Text />
+                    </RN.View>
+                )
+            `,
+            raw: ['<_RawView>'],
+            wrapped: ['<RN.Text />'],
+        },
+        {
+            name: 'default imports',
+            source: `
+                import RN from 'react-native'
+
+                export const Component = () => (
+                    <RN.View>
+                        <RN.Text />
+                    </RN.View>
+                )
+            `,
+            raw: ['<_RawView>'],
+            wrapped: ['<RN.Text />'],
+        },
+        {
+            name: 'constant aliases',
+            source: `
+                import { Text, View } from 'react-native'
+
+                const Box = View
+                const Label = Text as typeof Text
+
+                export const Component = () => (
+                    <Box>
+                        <Label />
+                    </Box>
+                )
+            `,
+            raw: ['<_RawView>'],
+            wrapped: ['<Label />'],
+        },
+        {
+            name: 'CommonJS destructuring',
+            source: `
+                const { Text: Label, View } = require('react-native')
+
+                export const Component = () => (
+                    <View>
+                        <Label />
+                    </View>
+                )
+            `,
+            raw: ['<_RawView>'],
+            wrapped: ['<Label />'],
+        },
+        {
+            name: 'CommonJS namespaces',
+            source: `
+                const ReactNative = require('react-native')
+
+                export const Component = () => (
+                    <ReactNative.View>
+                        <ReactNative.Text />
+                        {React.createElement(require('react-native').Text, null)}
+                    </ReactNative.View>
+                )
+            `,
+            raw: ['<_RawView>'],
+            wrapped: ['<ReactNative.Text />', 'React.createElement(require(\'react-native\').Text, null)'],
+        },
+        {
+            name: 'createElement calls',
+            source: `
+                import React, { createElement } from 'react'
+                import { Text, View } from 'react-native'
+
+                export const view = React.createElement(View, null)
+                export const namedView = createElement(View, { style: { flex: 1 } })
+                export const text = React.createElement(Text, null)
+                export const namedText = createElement(Text, { style: { flex: 1 } })
+            `,
+            raw: ['React.createElement(_RawView, null)', 'createElement(_RawView, {'],
+            wrapped: ['React.createElement(Text, null)', 'createElement(Text, {'],
+        },
+    ]
+
+    test.each(referenceShapes)('rewrites only enabled components for $name', ({ raw, source, wrapped }) => {
+        const code = transform(source, ['View'])
+
+        expect(code).toMatch(new RegExp(`import \\{ View as _RawView \\} from "${RAW_COMPONENTS_MODULE}"`))
+        expect(code).not.toContain('_RawText')
+        raw.forEach(snippet => expect(code).toContain(snippet))
+        wrapped.forEach(snippet => expect(code).toContain(snippet))
+    })
+
+    test.each(referenceShapes)('rewrites nothing for an empty list with $name', ({ source }) => {
+        const code = transform(source, [])
+
+        expect(code).not.toContain(RAW_COMPONENTS_MODULE)
+        expect(code).not.toContain('_Raw')
+    })
+
+    test('ignores names that are not eligible components', () => {
+        const code = transform(
+            `
+                import { StatusBar } from 'react-native'
+
+                export const Component = () => <StatusBar />
+            `,
+            ['StatusBar'],
+        )
+
+        expect(code).not.toContain(RAW_COMPONENTS_MODULE)
+        expect(code).toContain('<StatusBar />')
+    })
+
+    test('requires the enabled component list', () => {
+        expect(() =>
+            transformSync(`import { View } from 'react-native'`, {
+                babelrc: false,
+                configFile: false,
+                filename: 'Component.tsx',
+                plugins: [componentTransform],
+            })
+        ).toThrow('Uniwind: The component transform requires the enabled component list')
+    })
+})
+
+describe('shouldTransformClasslessComponents', () => {
     const source = Buffer.from(`import { View } from 'react-native'`)
     const nativeOptions = {
         platform: 'android',
         type: 'module' as const,
     }
 
-    expect(shouldTransformClasslessComponents({}, source, nativeOptions)).toBe(false)
-    expect(shouldTransformClasslessComponents(
-        {
-            experimental: {
-                optimizeClasslessComponents: false,
-            },
-        },
-        source,
-        nativeOptions,
-    )).toBe(false)
-    expect(shouldTransformClasslessComponents(
-        {
-            experimental: {
-                optimizeClasslessComponents: true,
-            },
-        },
-        source,
-        nativeOptions,
-    )).toBe(true)
-    expect(shouldTransformClasslessComponents(
-        {
-            experimental: {
-                optimizeClasslessComponents: true,
-            },
-        },
-        source,
-        {
-            ...nativeOptions,
-            platform: 'web',
-        },
-    )).toBe(false)
+    test('dispatches files that can reference an enabled component', () => {
+        expect(shouldTransformClasslessComponents(
+            { optimizedClasslessComponents: ['View'] },
+            source,
+            nativeOptions,
+        )).toBe(true)
+        expect(shouldTransformClasslessComponents(
+            { optimizedClasslessComponents: [...CLASSLESS_COMPONENT_NAMES] },
+            source,
+            nativeOptions,
+        )).toBe(true)
+    })
+
+    test.each([
+        ['no resolved list', {}],
+        ['an empty list', { optimizedClasslessComponents: [] }],
+        ['a list without the referenced component', { optimizedClasslessComponents: ['Image' as const] }],
+    ])('skips the Babel dispatch for %s', (_, config) => {
+        expect(shouldTransformClasslessComponents(config, source, nativeOptions)).toBe(false)
+    })
+
+    // The option is off by default, so a scan there would cost every transform of every app.
+    test.each([
+        ['no resolved list', {}],
+        ['an empty list', { optimizedClasslessComponents: [] }],
+    ])('reads no file for %s', (_, config) => {
+        const data = Buffer.from(source)
+        const includes = jest.spyOn(data, 'includes')
+
+        expect(shouldTransformClasslessComponents(config, data, nativeOptions)).toBe(false)
+        expect(includes).not.toHaveBeenCalled()
+    })
+
+    test('skips web, assets and files without React Native', () => {
+        const config = { optimizedClasslessComponents: ['View' as const] }
+
+        expect(shouldTransformClasslessComponents(config, source, { ...nativeOptions, platform: 'web' })).toBe(false)
+        expect(shouldTransformClasslessComponents(config, source, { ...nativeOptions, type: 'asset' })).toBe(false)
+        expect(shouldTransformClasslessComponents(
+            config,
+            Buffer.from(`import { View } from './View'`),
+            nativeOptions,
+        )).toBe(false)
+    })
 })
