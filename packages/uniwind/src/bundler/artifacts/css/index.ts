@@ -12,7 +12,7 @@ type BuildCSSOptions = {
 }
 
 export const buildCSS = async (themes: Array<string>, input: string, cssFilePath: string, { defaultFontFamily = false }: BuildCSSOptions = {}) => {
-    const themesCSS = await generateCSSForThemes(themes, input)
+    const themesCSS = await generateCSSForThemes(themes, input, cssFilePath)
     const oldCSSFile = fs.existsSync(cssFilePath)
         ? fs.readFileSync(cssFilePath, 'utf-8')
         : ''
