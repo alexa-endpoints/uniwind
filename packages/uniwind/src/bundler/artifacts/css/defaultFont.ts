@@ -8,9 +8,11 @@
 // The rule sits behind the `web:` variant's condition, which native compiles
 // skip: native Text and TextInput read the token directly, so there the class
 // would be a dead style that every federated remote registers again.
+export const DEFAULT_FONT_CLASS_NAME = 'uniwind-default-font'
+
 export const DEFAULT_FONT_CSS = `@layer base {
     @supports selector(div > div) {
-        .uniwind-default-font {
+        .${DEFAULT_FONT_CLASS_NAME} {
             font-family: var(--default-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
         }
     }
