@@ -1,10 +1,12 @@
 import { act } from '@testing-library/react-native'
 import * as React from 'react'
 import { unstable_TextAncestorContext as TextAncestorContext } from 'react-native'
+import { StyleDependency } from '../../../src/common/consts'
 import Text from '../../../src/components/native/Text'
 import TextInput from '../../../src/components/native/TextInput'
 import { ScopedTheme } from '../../../src/components/ScopedTheme/ScopedTheme.native'
 import { Uniwind } from '../../../src/core'
+import { UniwindListener } from '../../../src/core/listener'
 import { UniwindStore } from '../../../src/core/native'
 import { renderUniwind } from '../utils'
 
@@ -16,6 +18,37 @@ const getVar = (theme: 'light' | 'dark', name: string) => {
 
 // React Native's Text provides this context to its children; the Jest mock does not.
 const NestedText = ({ children }: React.PropsWithChildren) => <TextAncestorContext value>{children}</TextAncestorContext>
+
+// Gives every element its own Profiler, so a count is the number of elements that re-rendered.
+const renderCountingRerenders = (elements: Array<React.ReactElement>) => {
+    let rerenders = 0
+    const onRender: React.ProfilerOnRenderCallback = (_id, phase) => {
+        if (phase !== 'mount') {
+            rerenders += 1
+        }
+    }
+    const result = renderUniwind(
+        <React.Fragment>
+            {elements.map((element, index) => (
+                <React.Profiler key={index} id={String(index)} onRender={onRender}>
+                    {element}
+                </React.Profiler>
+            ))}
+        </React.Fragment>,
+    )
+
+    return {
+        ...result,
+        countRerenders: (update: () => void) => {
+            rerenders = 0
+            act(update)
+
+            return rerenders
+        },
+    }
+}
+
+const classlessText = (count: number) => Array.from({ length: count }, () => <Text>Hello</Text>)
 
 describe('Default font family', () => {
     let lightDefault: unknown
@@ -163,6 +196,65 @@ describe('Default font family', () => {
         expect(getStylesFromId('global').fontFamily).toEqual('Inter Display')
     })
 
+    test('re-renders no root text when an update leaves the stock fallback list in place', () => {
+        const { countRerenders } = renderCountingRerenders(classlessText(2000))
+
+        expect(countRerenders(() => Uniwind.updateCSSVariables('light', { '--unrelated': '#ffffff' }))).toBe(0)
+        expect(countRerenders(() => Uniwind.setTheme('dark'))).toBe(0)
+    })
+
+    test('re-renders root text only when its family changes', () => {
+        useDefaults('Inter')
+
+        const { countRerenders } = renderCountingRerenders([...classlessText(1999), <TextInput testID="input" />])
+
+        expect(countRerenders(() => Uniwind.updateCSSVariables('light', { '--unrelated': '#ffffff' }))).toBe(0)
+        expect(countRerenders(() => Uniwind.setTheme('dark'))).toBe(0)
+        expect(countRerenders(() => Uniwind.updateCSSVariables('dark', { '--default-font-family': 'Inter Display' }))).toBe(2000)
+    })
+
+    test('re-renders no scoped-theme text on a global theme change', () => {
+        useDefaults('Inter', 'Inter Dark')
+
+        const { countRerenders, getStylesFromId } = renderCountingRerenders([
+            <Text testID="global">Hello</Text>,
+            <ScopedTheme theme="dark">
+                <Text testID="scoped">Hello</Text>
+            </ScopedTheme>,
+        ])
+
+        expect(countRerenders(() => Uniwind.setTheme('dark'))).toBe(1)
+        expect(getStylesFromId('global').fontFamily).toEqual('Inter Dark')
+        expect(getStylesFromId('scoped').fontFamily).toEqual('Inter Dark')
+    })
+
+    test('subscribes scoped-theme text to variables only and nested text to nothing', () => {
+        const subscribe = jest.spyOn(UniwindListener, 'subscribe')
+
+        renderUniwind(
+            <React.Fragment>
+                <Text>Root</Text>
+                <TextInput />
+                <ScopedTheme theme="dark">
+                    <Text>Scoped</Text>
+                </ScopedTheme>
+                <NestedText>
+                    <Text>Nested</Text>
+                </NestedText>
+            </React.Fragment>,
+        )
+
+        // Classless useStyle subscribes to no dependencies.
+        const subscriptions = subscribe.mock.calls.map(([, dependencies]) => dependencies).filter(dependencies => dependencies.length > 0)
+        subscribe.mockRestore()
+
+        expect(subscriptions).toEqual([
+            [StyleDependency.Theme, StyleDependency.Variables],
+            [StyleDependency.Theme, StyleDependency.Variables],
+            [StyleDependency.Variables],
+        ])
+    })
+
     test('catches up with theme changes while Activity is hidden', () => {
         useDefaults('Inter', 'Inter Dark')
 
@@ -184,6 +276,25 @@ describe('Default font family', () => {
 
         act(() => Uniwind.setTheme('light'))
         expect(getStylesFromId('text').fontFamily).toEqual('Inter')
+    })
+
+    test('catches up with theme changes while Activity hides text that re-rendered since mount', () => {
+        useDefaults('Inter', 'Inter Dark')
+
+        // Memoized so only a label change renders the text, never a hide or reveal.
+        const Label = React.memo(({ label }: { label: string }) => <Text testID="text">{label}</Text>)
+        const App = ({ hidden, label }: { hidden: boolean; label: string }) => (
+            <React.Activity mode={hidden ? 'hidden' : 'visible'}>
+                <Label label={label} />
+            </React.Activity>
+        )
+        const { getStylesFromId, rerender } = renderUniwind(<App hidden={false} label="Hello" />)
+
+        rerender(<App hidden={false} label="Hello again" />)
+        rerender(<App hidden label="Hello again" />)
+        act(() => Uniwind.setTheme('dark'))
+        rerender(<App hidden={false} label="Hello again" />)
+        expect(getStylesFromId('text').fontFamily).toEqual('Inter Dark')
     })
 
     test('catches up with theme changes while Suspense is suspended', () => {
