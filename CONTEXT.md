@@ -35,7 +35,7 @@ Important paths:
 - `packages/uniwind/src/hoc`: `withUniwind` for custom components.
 - `packages/uniwind/src/bundler`: Metro/Vite adapters, Tailwind compilation, CSS processing, artifact generation.
 - `packages/uniwind/tests`: native, web, type, and e2e tests.
-- `packages/uniwind/uniwind.css`: package-level CSS artifact referenced by package `style` export. It carries the custom variants, safe-area utilities, the `uniwind-default-font` base rule, and the generated theme variables; `src/bundler/artifacts/css` builds it.
+- `packages/uniwind/uniwind.css`: package-level CSS artifact referenced by package `style` export. It carries the custom variants, safe-area utilities, the web-only `uniwind-default-font` base rule, and the generated theme variables; `src/bundler/artifacts/css` builds it.
 - `packages/uniwind/no-types.d.ts`: published placeholder declaration for component subpath exports.
 
 Public exports from `src/index.ts`:
@@ -193,7 +193,7 @@ Web components:
 - Web wrappers map `className` to RNW CSS style markers through `toRNWClassName`.
 - Web wrappers pass generated `dataSet` so data attribute variants can match.
 - `InputAccessoryView` wraps React Native Web's export when available (0.21.3+) and uses `View` with older React Native Web versions, while supporting Uniwind classes and data attributes.
-- React Native Web resets root text and inputs to `font: 14px System`, so web `Text` and `TextInput` carry the `uniwind-default-font` class that `uniwind.css` declares in `@layer base`: it beats RNW's `@layer rnw` reset and loses to font utilities by layer, which survives the rule re-sorting RNW applies when it serializes the sheet for static rendering. Without the token the rule falls back to RNW's System stack, so those apps keep the reset font. Uniwind `Text` marks its subtree so nested text keeps inheriting.
+- React Native Web resets root text and inputs to `font: 14px System`, so web `Text` and `TextInput` carry the `uniwind-default-font` class that `uniwind.css` declares in `@layer base`: it beats RNW's `@layer rnw` reset and loses to font utilities by layer, which survives the rule re-sorting RNW applies when it serializes the sheet for static rendering. Because the rule reads the token, Tailwind emits `--default-font-family` whenever the theme defines `--font-sans`, with or without preflight; when the token is unset (no `--font-sans`, or `--default-font-family: initial`), the rule falls back to RNW's System stack, so those apps keep the reset font. The rule sits behind the `web:` variant's `@supports selector(div > div)` condition, which native compiles skip, so native stylesheets and federated remotes carry no dead copy; native `Text` and `TextInput` read the token directly. Uniwind `Text` marks its subtree so nested text keeps inheriting.
 
 `withUniwind`:
 
