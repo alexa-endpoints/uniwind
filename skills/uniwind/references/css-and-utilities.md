@@ -249,7 +249,13 @@ React Native requires a **single font** per family — no fallbacks:
 
 Font name must **exactly match** the font file name (without extension).
 
-**Default font for root text (opt-in)**: by default, `Text` and `TextInput` without a font class use the platform font on native and React Native Web's System font on web. Set `defaultFontFamily: true` in `withUniwindConfig` or the Vite plugin to start them from the theme's `--default-font-family`, which Tailwind derives from `--font-sans`; restart Metro after changing it. Native needs a single family there: a fallback list keeps the platform font. A federated remote should use its host's setting.
+**Default font for root text (opt-in)**: by default, `Text` and `TextInput` without a font class use the platform font on native. On web, root `Text` uses React Native Web's System font, and with Preflight `TextInput` inherits its container's font. Set `defaultFontFamily: true` in `withUniwindConfig` or the Vite plugin to start them from the theme's `--default-font-family`, which Tailwind derives from `--font-sans`; restart Metro after changing it.
+
+- `className` and `style` still win, and nested `Text` inherits from its parent.
+- Native needs a single family there: a fallback list keeps the platform font.
+- Web: keep `@import 'tailwindcss'`, or put `@layer theme, base, components, utilities;` before `@import 'uniwind'` when importing Tailwind's parts separately. Without it, the default font beats `font-*` utilities.
+- Web: a `ScopedTheme` or `ScopedVariables` override of `--font-sans` only reaches root text on native. Override `--default-font-family` to change it on web too.
+- A federated remote should use its host's setting. Remote text follows it only when the remote shares `uniwind/components` and its subpaths with the host; text from the remote's own copy of the components renders as with the option off.
 
 **Expo**: Configure fonts in `app.json` with the `expo-font` plugin, then reference in CSS.
 

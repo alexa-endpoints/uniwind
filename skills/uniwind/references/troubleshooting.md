@@ -46,6 +46,9 @@ When styles aren't working, check in this order:
 | Dark theme not working | Missing `@variant dark` | Define dark variant in `@layer theme` |
 | Custom theme not appearing | Not registered in metro config | Add to `extraThemes` array, restart Metro |
 | Fonts not loading | Font name mismatch | CSS font name must match file name exactly (no extension) |
+| `Text` without a font class ignores `--font-sans` | The root text default font is opt-in | Set `defaultFontFamily: true` in the Metro or Vite config and restart; native needs a single family, not a fallback list |
+| Web: `font-*` utilities lose to the default font | The CSS entry imports Tailwind's parts without its layer order | Put `@layer theme, base, components, utilities;` before the imports (`@import 'tailwindcss'` already includes it) |
+| Web: scoped `--font-sans` doesn't change root text | The browser resolves `--default-font-family` once, on the root | Set `--default-font-family` next to it: in every theme's `@variant` block (themes must define the same variables), or in the `ScopedVariables` override |
 | `rem` values too large/small | Wrong base rem | Set `polyfills: { rem: 14 }` for NativeWind compat |
 | Unsupported CSS warning | Web-specific CSS used | Enable `debug: true` to identify; remove unsupported properties |
 | `Failed to serialize javascript object` | Complex CSS, circular refs, or stale cache | Clear caches: `watchman watch-del-all; rm -rf node_modules/.cache; npx expo start --clear`. Also check if docs/markdown files containing CSS classes are in the scan path (see below) |
