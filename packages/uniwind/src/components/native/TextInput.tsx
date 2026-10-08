@@ -16,7 +16,7 @@ export const TextInput = copyComponentProperties(RNTextInput, (props: TextInputP
         isPressed,
     } satisfies ComponentState
     const style = useStyle(props.className, props, state)
-    const defaultFontFamily = useDefaultFontFamily()
+    const defaultFontFamily = useDefaultFontFamily('input')
     const cursorColor = useAccentColor(props.cursorColorClassName, props, state)
     const selectionColor = useAccentColor(props.selectionColorClassName, props, state)
     const placeholderTextColor = useAccentColor(props.placeholderTextColorClassName, props, state)

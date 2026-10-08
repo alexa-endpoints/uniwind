@@ -16,17 +16,18 @@ const cssWideKeywords = new Set(['inherit', 'initial', 'revert', 'revert-layer',
  * from the theme's --default-font-family, the font Tailwind's preflight gives
  * the web root. React Native resolves one family name, so a fallback list or a
  * CSS-wide keyword keeps the platform default. Nested text inherits from its
- * parent, and className and style still override.
+ * parent, while an input never inherits an enclosing Text's attributes, so it
+ * starts from the default there too. className and style still override.
  */
-export const useDefaultFontFamily = () => {
+export const useDefaultFontFamily = (component: 'text' | 'input') => {
     'use no memo'
     const uniwindContext = useUniwindContext()
-    const hasTextAncestor = use(TextAncestorContext)
+    const inheritsFont = use(TextAncestorContext) && component === 'text'
     const [_, rerender] = useReducer(() => ({}), {})
     const renderedSnapshot = UniwindListener.getSnapshot(dependencies)
 
     useLayoutEffect(() => {
-        if (!hasTextAncestor) {
+        if (!inheritsFont) {
             const dispose = UniwindListener.subscribe(rerender, dependencies)
 
             // Activity and Suspense can reconnect effects without rendering.
@@ -36,9 +37,9 @@ export const useDefaultFontFamily = () => {
 
             return dispose
         }
-    }, [hasTextAncestor])
+    }, [inheritsFont])
 
-    if (hasTextAncestor) {
+    if (inheritsFont) {
         return undefined
     }
 

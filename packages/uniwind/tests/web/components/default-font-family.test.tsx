@@ -27,4 +27,14 @@ describe('Default font family', () => {
         expect(getByTestId('outer')).toHaveClass('uniwind-default-font')
         expect(getByTestId('inner')).not.toHaveClass('uniwind-default-font')
     })
+
+    test('marks inputs nested in text, matching native inputs that never inherit', () => {
+        const { getByTestId } = render(
+            <Text className="font-mono" testID="outer">
+                Name: <TextInput testID="input" />
+            </Text>,
+        )
+
+        expect(getByTestId('input')).toHaveClass('uniwind-default-font')
+    })
 })
