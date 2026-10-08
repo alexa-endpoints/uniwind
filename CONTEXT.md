@@ -35,7 +35,7 @@ Important paths:
 - `packages/uniwind/src/hoc`: `withUniwind` for custom components.
 - `packages/uniwind/src/bundler`: Metro/Vite adapters, Tailwind compilation, CSS processing, artifact generation.
 - `packages/uniwind/tests`: native, web, type, and e2e tests.
-- `packages/uniwind/uniwind.css`: package-level CSS artifact referenced by package `style` export. It carries the custom variants, safe-area utilities, the web-only `uniwind-default-font` base rule, and the generated theme variables; `src/bundler/artifacts/css` builds it.
+- `packages/uniwind/uniwind.css`: package-level CSS artifact referenced by package `style` export. It carries the custom variants, safe-area utilities, and the generated theme variables, plus the web-only `uniwind-default-font` base rule for configs that set `defaultFontFamily`; `src/bundler/artifacts/css` builds it. The committed copy is the default-config artifact of `@import "tailwindcss"; @import "uniwind";`, so it has no such rule.
 - `packages/uniwind/no-types.d.ts`: published placeholder declaration for component subpath exports.
 
 Public exports from `src/index.ts`:
@@ -67,7 +67,7 @@ Workspace dependency alignment: the examples share Expo SDK 57's React Native 0.
 
 Native runtime:
 
-- Build output injects a generated stylesheet callback into `Uniwind.__reinit(...)`.
+- Build output injects a generated stylesheet callback into `Uniwind.__reinit(...)`, along with the runtime options the build config sets (`defaultFontFamily`).
 - Federated remote build output registers an owner-keyed style delta instead.
 - `UniwindStore` holds generated style records, theme variables, scoped variables, runtime state, and per-theme caches.
 - `UniwindStore.getStyles(className, props, state, context)` resolves classes into React Native style objects.
@@ -97,6 +97,7 @@ Shared runtime:
 - `ScopedTheme` sets `UniwindContext.scopedTheme`; scoped subtree ignores global theme changes for style resolution.
 - `LayoutDirection` sets `UniwindContext.rtl`; scoped subtree uses that direction for RTL/LTR variant resolution instead of global runtime RTL.
 - `ScopedVariables` sets `UniwindContext.variables`; the subtree overrides CSS variables for style resolution and `useCSSVariable` without mutating the global theme. Nested providers merge with ancestors, nearest wins.
+- Runtime options (`defaultFontFamily`) come from the build config through the host's generated registration: the native host stylesheet and, on web, `metro-injected.js` or the config module the Vite plugin extends pass them to `Uniwind.__reinit`. A registration without options, such as a federated remote's, leaves them unchanged.
 
 ## Build And Bundler Model
 
@@ -105,6 +106,7 @@ Configuration shape:
 - `cssEntryFile`: required CSS entry path, resolved from `process.cwd()`.
 - `extraThemes`: optional named themes added to default `light` and `dark`.
 - `dtsFile`: optional generated declaration file path, default `uniwind-types.d.ts`.
+- `defaultFontFamily`: optional boolean, default `false`, for Metro (native and web), Vite, and the CLI's `--default-font-family`. When on, root `Text` and `TextInput` start from the theme's `--default-font-family` (see Components). When off, Uniwind adds no default font rule to its artifact, so it causes no `--default-font-family` emission, and `Text`/`TextInput` render as they did before the option existed. Anything but a boolean fails config creation. A federated remote should set its host's value: the host's registration decides runtime behavior, and the remote's value only shapes its own build (artifact, classless `Text`/`TextInput`).
 - Metro-only `experimental.federation`: optional experimental host/remote build contract. Hosts may declare exact shared class candidates that are force-generated into the base build and may list inlined remote stylesheets with an owner ID, CSS entry file, and optional shared candidates. Remotes use a stable owner ID and exclude exact shared candidates from their scanned delta. See the [local Module Federation demo](apps/module-federation/README.md).
 - Metro-only `experimental.optimizeClasslessComponents`: optional native compile-time optimization for statically classless built-in React Native elements, default `false`.
 - Metro-only `polyfills.rem`: custom rem base, default `16`.
@@ -128,15 +130,17 @@ Metro integration:
 - Metro transformer handles the configured host CSS entry file and any host-declared inlined remote CSS entry files specially. In development, native entries declare imported local CSS files as Metro dependencies, including nested imports and workspace files resolved outside `node_modules`, so token-only edits trigger recompilation. Dependencies are collected afresh on each compile. Files in Uniwind's own package directory are never declared: it holds the stylesheets the transform writes (the project's artifact that `@import "uniwind"` resolves to and the shared `uniwind.css`), so declaring them would rebuild the entry after the transform's own writes, and the Metro servers of projects sharing one install (a federation host and its remotes) after each other's.
 - Other native CSS is an empty module in plain Metro; Expo keeps its own CSS handling. Web CSS handling is unchanged.
 - `experimental.optimizeClasslessComponents` (off by default) compiles classless native elements
-  to raw React Native components; styled or uncertain references, and every `Text`/`TextInput`,
-  keep existing wrappers. The deprecated `SafeAreaView` always keeps its wrapper, because React
-  Native warns when that export is read.
+  to raw React Native components; styled or uncertain references keep existing wrappers, and so do
+  `Text` and `TextInput` while `defaultFontFamily` is on, because only their wrappers apply the
+  default font. The deprecated `SafeAreaView` always keeps its wrapper, because React Native warns
+  when that export is read. The transformer passes the Babel transform the list of components to
+  rewrite (`getRawComponentNames`).
 - Metro transformer worker selection is lazy, cached per Expo/non-Expo config type, and follows Expo transformer paths or Expo-specific config markers.
-- Host native platform CSS transforms into a JS module that calls `Uniwind.__reinit(...)` with a fingerprint of the generated styles and themes. During development, the native runtime skips reinitialization when that fingerprint is unchanged.
+- Host native platform CSS transforms into a JS module that calls `Uniwind.__reinit(...)` with a fingerprint of the generated styles, themes, and runtime options, then the runtime options themselves. During development, the native runtime skips reinitialization when that fingerprint is unchanged, so toggling `defaultFontFamily` reinitializes even though the styles are the same. Mounted text that rendered with the option off subscribed to nothing and picks a newly enabled default up when it next renders.
 - Federated remote native CSS transforms into an owner-keyed merge registration, declaring its imported stylesheets in development like a host entry.
 - Inlined remote stylesheets compile with remote federation semantics inside the host graph, and in development declare their own imported stylesheets. Artifact generation remains tied to the host stylesheet so concurrent Metro workers write identical shared CSS and typings.
-- Each project compiles against its own generated stylesheet under the package's `.artifacts/`, keyed by the resolved CSS entry path, so projects with different themes (a federation host and its remotes) can build concurrently from one installed package. The shared `uniwind.css` is still written for tools that import it directly; that copy also goes through `writeFileAtomicSync`, like `buildCSS` and `buildDtsFile`, so readers never see a partial file.
-- Web platform CSS transforms into CSS plus web runtime setup.
+- Each project compiles against its own generated stylesheet under the package's `.artifacts/`, keyed by every input that changes its content (`UniwindBundlerConfig.artifactKey`: the resolved CSS entry path, the theme list, and `defaultFontFamily`), so projects with different themes (a federation host and its remotes), or one entry built with different configs, can build concurrently from one installed package. The shared `uniwind.css` is still written for tools that import it directly; that copy also goes through `writeFileAtomicSync`, like `buildCSS` and `buildDtsFile`, so readers never see a partial file.
+- Web platform CSS transforms into CSS plus web runtime setup. `metro-injected.js` becomes the web registration, `Uniwind.__reinit` with the themes and, except in a federated remote, the runtime options.
 - Resolver swaps React Native component imports to Uniwind-aware implementations where needed.
 - On web, imports originating inside React Native Web keep their original components, preventing cycles through Uniwind wrappers. Animated component imports still receive wrappers, matching the native resolver, and the internal `createOrderedCSSStyleSheet` override remains active. Application and third-party component imports still resolve to styled wrappers.
 - `uniwind` and `uniwind/*` requests first resolve from the importing module, so upstream virtual and provider-origin resolutions (such as Module Federation shared modules) are kept. When that resolution fails or lands in a different installed `uniwind` package, the request is pinned to `<projectRoot>/package.json`, so every importer gets the app's copy. If the pinned resolution still returns a source file outside this package (e.g. Expo autolinking resolution picks a hoisted public `uniwind` while Pro is installed under an alias such as `"uniwind": "npm:uniwind-pro"`), the request is resolved again with Metro's default `metro-resolver`.
@@ -148,6 +152,7 @@ Vite integration:
 - Vite replaces RNW `createOrderedCSSStyleSheet` with Uniwind's ordered stylesheet implementation.
 - Vite uses Lightning CSS with `UniwindCSSVisitor`.
 - Vite generates artifacts on `buildStart` and `generateBundle`.
+- Vite appends `Uniwind.__reinit` with the themes and runtime options to Uniwind's built config module.
 
 ## CSS Processing
 
@@ -185,7 +190,7 @@ Native components:
 - Most components combine generated style before user style: `[generatedStyle, props.style]`, preserving user overrides.
 - Stateful components such as `Pressable` pass `pressed`, `focused`, and `disabled` state into style resolution.
 - Accent-capable components use `accentColor` extraction helpers where needed.
-- Root `Text` and `TextInput` start from the theme's `--default-font-family`, the token Tailwind's preflight puts on the web root, when it names a single family; React Native cannot resolve a fallback list or a CSS-wide keyword, so those keep the platform default. It also expects a bare name, so the quotes a value set at runtime may carry are stripped. Tailwind's default theme derives the token from `--font-sans`. Nested text inherits from its parent; a `TextInput` never inherits an enclosing `Text`'s attributes, so one inside a `Text` starts from the default too, as on web. `className` and `style` still override. `experimental.optimizeClasslessComponents` therefore excludes `Text` and `TextInput`: only the wrapper reads the variable, and a raw component would also pull Uniwind's runtime into a federated remote's bundle. Root text re-renders only when its resolved family changes: under `ScopedTheme` it ignores global theme changes, and nested text subscribes to nothing.
+- With `defaultFontFamily` on, root `Text` and `TextInput` start from the theme's `--default-font-family`, the token Tailwind's preflight puts on the web root, when it names a single family; React Native cannot resolve a fallback list or a CSS-wide keyword, so those keep the platform default. It also expects a bare name, so the quotes a value set at runtime may carry are stripped. Tailwind's default theme derives the token from `--font-sans`. Nested text inherits from its parent; a `TextInput` never inherits an enclosing `Text`'s attributes, so one inside a `Text` starts from the default too, as on web. `className` and `style` still override. `experimental.optimizeClasslessComponents` therefore keeps classless `Text` and `TextInput` on the wrapper while the option is on: only the wrapper reads the variable. Root text re-renders only when its resolved family changes: under `ScopedTheme` it ignores global theme changes, and nested text subscribes to nothing. With the option off, `Text` and `TextInput` subscribe to nothing for it and pass React Native the style arrays they passed before the option existed.
 
 Web components:
 
@@ -193,7 +198,7 @@ Web components:
 - Web wrappers map `className` to RNW CSS style markers through `toRNWClassName`.
 - Web wrappers pass generated `dataSet` so data attribute variants can match.
 - `InputAccessoryView` wraps React Native Web's export when available (0.21.3+) and uses `View` with older React Native Web versions, while supporting Uniwind classes and data attributes.
-- React Native Web resets root text and inputs to `font: 14px System`, so web `Text` and `TextInput` carry the `uniwind-default-font` class that `uniwind.css` declares in `@layer base`: it beats RNW's `@layer rnw` reset and loses to font utilities by layer, which survives the rule re-sorting RNW applies when it serializes the sheet for static rendering. Because the rule reads the token, Tailwind emits `--default-font-family` whenever the theme defines `--font-sans`, with or without preflight; when the token is unset (no `--font-sans`, or `--default-font-family: initial`), the rule falls back to RNW's System stack, so those apps keep the reset font. The rule sits behind the `web:` variant's `@supports selector(div > div)` condition, which native compiles skip, so native stylesheets and federated remotes carry no dead copy; native `Text` and `TextInput` read the token directly. Uniwind `Text` marks its subtree so nested text keeps inheriting.
+- React Native Web resets root text and inputs to `font: 14px System`, so with `defaultFontFamily` on, web `Text` and `TextInput` carry the `uniwind-default-font` class that the artifact then declares in `@layer base`: it beats RNW's `@layer rnw` reset and loses to font utilities by layer, which survives the rule re-sorting RNW applies when it serializes the sheet for static rendering. Because the rule reads the token, Tailwind emits `--default-font-family` for those configs whenever the theme defines `--font-sans`, with or without preflight; when the token is unset (no `--font-sans`, or `--default-font-family: initial`), the rule falls back to RNW's System stack, so those apps keep the reset font. The rule sits behind the `web:` variant's `@supports selector(div > div)` condition, which native compiles skip, so native stylesheets and federated remotes carry no dead copy; native `Text` and `TextInput` read the token directly. Uniwind `Text` marks its subtree so nested text keeps inheriting. With the option off, neither carries the class nor marks a subtree, so they render React Native Web's DOM as before.
 
 `withUniwind`:
 

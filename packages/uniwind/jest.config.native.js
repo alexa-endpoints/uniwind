@@ -11,5 +11,6 @@ export default {
         '^yaml$': '<rootDir>/../../node_modules/yaml/dist/index.js',
         '^@/(.*)$': '<rootDir>/src/$1',
         '^\\./transformer\\.cjs$': '<rootDir>/src/bundler/adapters/metro/transformer.ts',
+        '^\\./babel-transformer\\.cjs$': '<rootDir>/src/bundler/adapters/metro/babel-transformer.ts',
     },
 }

@@ -21,6 +21,8 @@ export type UniwindConfig = {
     cssEntryFile: string
     extraThemes?: Array<string>
     dtsFile?: string
+    // Root Text and TextInput start from the theme's --default-font-family. Off by default.
+    defaultFontFamily?: boolean
 }
 
 export type Polyfills = {

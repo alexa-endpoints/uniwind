@@ -117,7 +117,7 @@ describe('inlined remote CSS', () => {
             expect(artifactCSSPaths).toEqual([hostCSSPath, hostCSSPath, hostCSSPath])
         } finally {
             rmSync(directory, { force: true, recursive: true })
-            rmSync(projectArtifactPath(hostCSSPath), { force: true })
+            rmSync(projectArtifactPath(UniwindBundlerConfig.fromMetroConfig(uniwind)), { force: true })
         }
     })
 })

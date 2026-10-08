@@ -2,6 +2,7 @@ import { transformSync, traverse } from '@babel/core'
 import { componentTransform } from '../../../src/bundler/adapters/metro/component-transform'
 import {
     DEFAULT_FONT_COMPONENT_NAMES,
+    getRawComponentNames,
     RAW_COMPONENT_NAMES,
     RAW_COMPONENTS_MODULE,
     type RawComponentName,
@@ -48,6 +49,15 @@ const CLASS_PROPS_BY_COMPONENT = {
         'thumbColorClassName',
         'ios_backgroundColorClassName',
     ],
+    Text: ['className', 'selectionColorClassName'],
+    TextInput: [
+        'className',
+        'cursorColorClassName',
+        'selectionColorClassName',
+        'placeholderTextColorClassName',
+        'selectionHandleColorClassName',
+        'underlineColorAndroidClassName',
+    ],
     TouchableHighlight: ['className', 'underlayColorClassName'],
     TouchableNativeFeedback: ['className'],
     TouchableOpacity: ['className'],
@@ -62,7 +72,7 @@ const CLASS_PROPS_BY_COMPONENT = {
     ],
 } as const satisfies Record<RawComponentName, ReadonlyArray<string>>
 
-const runTransform = (source: string) => {
+const runTransform = (source: string, components: ReadonlyArray<string> = getRawComponentNames(false)) => {
     const result = transformSync(source, {
         ast: true,
         babelrc: false,
@@ -71,7 +81,7 @@ const runTransform = (source: string) => {
         parserOpts: {
             plugins: ['jsx', 'typescript'],
         },
-        plugins: [componentTransform],
+        plugins: [[componentTransform, { components }]],
     })
 
     if (!result?.ast || !result.code) {
@@ -84,7 +94,11 @@ const runTransform = (source: string) => {
     }
 }
 
-const transform = (source: string) => runTransform(source).code
+const transform = (source: string, components?: ReadonlyArray<string>) => runTransform(source, components).code
+
+test('the private raw-component module exports exactly the raw-eligible components', () => {
+    expect(Object.keys(rawComponents).sort()).toEqual([...RAW_COMPONENT_NAMES].sort())
+})
 
 describe.each(RAW_COMPONENT_NAMES)('%s compile-time dispatch', componentName => {
     test('is exported by the private raw-component module', () => {
@@ -129,21 +143,51 @@ describe.each(RAW_COMPONENT_NAMES)('%s compile-time dispatch', componentName => 
     })
 })
 
-describe.each(DEFAULT_FONT_COMPONENT_NAMES)('%s keeps the wrapper when classless', componentName => {
-    test('is not exported by the private raw-component module', () => {
-        expect((rawComponents as Record<string, unknown>)[componentName]).toBeUndefined()
+describe.each(DEFAULT_FONT_COMPONENT_NAMES)('%s with the default font family', componentName => {
+    test('compiles to the raw component while the option is off', () => {
+        expect(getRawComponentNames(false)).toContain(componentName)
     })
 
-    test('keeps statically classless JSX on the Uniwind wrapper path', () => {
-        const code = transform(`
-            import { ${componentName} } from 'react-native'
+    test('keeps statically classless JSX on the Uniwind wrapper path while the option is on', () => {
+        const components = getRawComponentNames(true)
+        const code = transform(
+            `
+            import { ${componentName}, View } from 'react-native'
 
-            export const Component = () => <${componentName} testID="component" />
-        `)
+            export const Component = () => <View><${componentName} testID="component" /></View>
+        `,
+            components,
+        )
 
-        expect(code).not.toContain(RAW_COMPONENTS_MODULE)
+        expect(components).not.toContain(componentName)
+        expect(code).toContain('<_RawView>')
         expect(code).toContain(`<${componentName} testID="component" />`)
     })
+})
+
+test('rewrites only the enabled components', () => {
+    const code = transform(
+        `
+        import { Text, View } from 'react-native'
+
+        export const Component = () => <View><Text>Hello</Text></View>
+    `,
+        ['Text'],
+    )
+
+    expect(code).toMatch(/import \{ Text as _RawText \}/)
+    expect(code).toContain('<View><_RawText>Hello</_RawText></View>')
+})
+
+test('requires the enabled component list', () => {
+    expect(() =>
+        transformSync(`import { View } from 'react-native'`, {
+            babelrc: false,
+            configFile: false,
+            filename: 'Component.tsx',
+            plugins: [componentTransform],
+        })
+    ).toThrow('Uniwind: The component transform requires the enabled component list')
 })
 
 test('uses raw components only for provably classless JSX', () => {
@@ -329,6 +373,12 @@ test('keeps the deprecated SafeAreaView on the Uniwind wrapper path', () => {
     expect(code).not.toContain(RAW_COMPONENTS_MODULE)
     expect(code).toContain('<SafeAreaView testID="component" />')
     expect(rawComponents).not.toHaveProperty('SafeAreaView')
+    expect(getRawComponentNames(false)).not.toContain('SafeAreaView')
+    expect(getRawComponentNames(true)).not.toContain('SafeAreaView')
+    // Even a list that names it cannot send it down the raw path.
+    expect(transform(`import { SafeAreaView } from 'react-native'\nexport const C = () => <SafeAreaView />`, ['SafeAreaView'])).not.toContain(
+        RAW_COMPONENTS_MODULE,
+    )
 })
 
 test('requires the Metro experimental option', () => {

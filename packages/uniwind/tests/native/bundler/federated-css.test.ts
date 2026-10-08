@@ -1,12 +1,12 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'fs'
 import path from 'path'
 import { UniwindBundlerConfig } from '../../../src/bundler/config'
-import { compileCSS } from '../../../src/bundler/css-compiler'
 import { compileNativeCSS } from '../../../src/bundler/css-compiler/compileNativeCSS'
 import { Platform } from '../../../src/common/consts'
 import { Logger } from '../../../src/core/logger'
 import { UniwindStore } from '../../../src/core/native'
 import type { GenerateStyleSheetsCallback, UniwindContextType } from '../../../src/core/types'
+import { compileWithArtifact } from '../../compileWithArtifact'
 import { TW_RED_500 } from '../../consts'
 
 const context = {
@@ -98,29 +98,27 @@ describe('federated native CSS', () => {
         )
 
         try {
-            const host = await compileCSS(
-                UniwindBundlerConfig.fromMetroConfig(
-                    { cssEntryFile: './tests/test.css', experimental: { federation: { role: 'host' } } },
-                    Platform.iOS,
-                ),
-            )
-            const remote = await compileCSS(
-                UniwindBundlerConfig.fromMetroConfig(
-                    {
-                        cssEntryFile: path.relative(process.cwd(), remoteCSSPath),
-                        experimental: { federation: { role: 'remote', id: 'remote-a' } },
-                    },
-                    Platform.iOS,
-                ),
-            )
+            // With the default font on, both artifacts carry Uniwind's web-only root text rule.
+            const host = await compileWithArtifact({
+                cssEntryFile: './tests/test.css',
+                defaultFontFamily: true,
+                experimental: { federation: { role: 'host' } },
+            }, Platform.iOS)
+            const remote = await compileWithArtifact({
+                cssEntryFile: path.relative(process.cwd(), remoteCSSPath),
+                defaultFontFamily: true,
+                experimental: { federation: { role: 'remote', id: 'remote-a' } },
+            }, Platform.iOS)
 
-            UniwindStore.reinit(toRegistration(host), ['light', 'dark'])
-            dispose = UniwindStore.merge('remote-a', toRegistration(remote), ['light', 'dark'])
+            expect(remote.artifact).toContain('.uniwind-default-font {')
+
+            UniwindStore.reinit(toRegistration(host.code), ['light', 'dark'])
+            dispose = UniwindStore.merge('remote-a', toRegistration(remote.code), ['light', 'dark'])
 
             expect(UniwindStore.getStyles('rmt:bg-red-500', undefined, undefined, context).styles).toEqual({ backgroundColor: TW_RED_500 })
             expect(warn).not.toHaveBeenCalled()
             // Uniwind's own stylesheet adds no class for the remote to register again.
-            expect(remote.match(/"uniwind-default-font"/g)).toBeNull()
+            expect(remote.code.match(/"uniwind-default-font"/g)).toBeNull()
         } finally {
             dispose()
             warn.mockRestore()

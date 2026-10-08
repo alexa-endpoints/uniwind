@@ -46,6 +46,20 @@ const getReactNativeAlias = async (plugin: Plugin) => {
     return alias
 }
 
+const runTransform = async (plugin: Plugin, code: string, id: string) => {
+    const hook = plugin.transform
+
+    if (hook === undefined) {
+        throw new Error('Expected the Uniwind plugin to define a transform hook')
+    }
+
+    const handler = typeof hook === 'function' ? hook : hook.handler
+
+    return await Reflect.apply(handler, {}, [code, id]) as { code: string } | undefined
+}
+
+const CONFIG_MODULE = path.resolve('node_modules/uniwind/dist/module/core/config/config.js')
+
 const runResolveId = async (
     plugin: Plugin,
     context: { resolve: ReturnType<typeof vi.fn> },
@@ -158,5 +172,16 @@ describe('Vite adapter', () => {
             'src/bundler/adapters/module/components/web/createOrderedCSSStyleSheet.js',
         ))
         expect(resolve).not.toHaveBeenCalled()
+    })
+
+    test.each([
+        [undefined, '{"defaultFontFamily":false}'],
+        [true, '{"defaultFontFamily":true}'],
+    ])('registers the runtime options with the themes (defaultFontFamily %s)', async (defaultFontFamily, options) => {
+        const plugin = uniwind({ ...config, defaultFontFamily, extraThemes: ['ocean'] })
+
+        await expect(runTransform(plugin, 'export const Uniwind = {}', CONFIG_MODULE)).resolves.toEqual({
+            code: `export const Uniwind = {}\n;Uniwind.__reinit(() => ({}), ['light', 'dark', 'ocean'], undefined, ${options})`,
+        })
     })
 })
