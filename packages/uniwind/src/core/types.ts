@@ -42,6 +42,11 @@ export type GenerateStyleSheetsCallback = (rt: UniwindRuntime) => {
     cascade?: CascadeTable
 }
 
+// Build options the runtime reads, passed by the host's generated registration.
+export type UniwindRuntimeOptions = {
+    defaultFontFamily?: boolean
+}
+
 export interface UniwindConfig {}
 
 type UserThemes = UniwindConfig extends { themes: infer T extends readonly string[] } ? T

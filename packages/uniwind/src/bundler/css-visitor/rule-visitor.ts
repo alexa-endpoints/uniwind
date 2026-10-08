@@ -1,4 +1,5 @@
 import type { ReturnedDeclaration, ReturnedMediaQuery, ReturnedRule, Rule, SelectorComponent } from 'lightningcss'
+import { DEFAULT_FONT_CLASS_NAME } from '../artifacts/css/defaultFont'
 import type { UniwindBundlerConfig } from '../config'
 
 type LightningRuleVisitor = Rule<ReturnedDeclaration, ReturnedMediaQuery>
@@ -34,6 +35,12 @@ export class RuleVisitor implements LightningRuleVisitors {
         }
 
         if (firstSelector?.type === 'class') {
+            // The host owns base CSS. Remote text only carries this class when it renders through the host's Uniwind
+            // components, under the host's stylesheet and runtime options, so only the host ships this rule.
+            if (this.bundlerConfig.isFederationRemote && firstSelector.name === DEFAULT_FONT_CLASS_NAME) {
+                return []
+            }
+
             return this.processClassStyle(styleRule, firstSelector)
         }
     }

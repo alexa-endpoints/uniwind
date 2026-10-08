@@ -73,7 +73,13 @@ export class UniwindBundlerConfig {
         return new UniwindBundlerConfig(config, Platform.Web)
     }
 
-    constructor(private readonly config: UniwindMetroConfig, readonly platform: Platform) {}
+    constructor(private readonly config: UniwindMetroConfig, readonly platform: Platform) {
+        if (config.defaultFontFamily !== undefined && typeof config.defaultFontFamily !== 'boolean') {
+            throw new Error(
+                'Uniwind: defaultFontFamily must be a boolean. The family itself comes from the theme\'s --default-font-family, which Tailwind derives from --font-sans.',
+            )
+        }
+    }
 
     get cssPath() {
         return path.join(process.cwd(), this.config.cssEntryFile)
@@ -117,6 +123,20 @@ export class UniwindBundlerConfig {
         return `[${this.themes.map((theme) => `'${theme}'`).join(', ')}]`
     }
 
+    get defaultFontFamily() {
+        return this.config.defaultFontFamily === true
+    }
+
+    // The build options the runtime reads, which the host's generated registration passes to `Uniwind.__reinit`.
+    get stringifiedRuntimeOptions() {
+        return JSON.stringify({ defaultFontFamily: this.defaultFontFamily })
+    }
+
+    // Every input besides the stylesheets it reads that changes what `generateArtifacts` writes.
+    get artifactKey() {
+        return JSON.stringify([path.resolve(this.cssPath), this.themes, this.defaultFontFamily])
+    }
+
     toMetroConfig(isExpoProject: boolean): UniwindMetroConfig {
         return {
             ...this.config,
@@ -125,7 +145,7 @@ export class UniwindBundlerConfig {
     }
 
     async generateArtifacts(cssArtifactPath: string) {
-        await buildCSS(this.themes, this.config.cssEntryFile, cssArtifactPath)
+        await buildCSS(this.themes, this.config.cssEntryFile, cssArtifactPath, { defaultFontFamily: this.defaultFontFamily })
         buildDtsFile(this.config.dtsFile ?? 'uniwind-types.d.ts', this.stringifiedThemes)
     }
 }
