@@ -26,7 +26,7 @@ export const TextInput = copyComponentProperties(RNTextInput, (props: TextInputP
     return (
         <RNTextInput
             {...props}
-            style={[defaultFontFamily, style, props.style]}
+            style={defaultFontFamily === undefined ? [style, props.style] : [defaultFontFamily, style, props.style]}
             cursorColor={props.cursorColor ?? cursorColor}
             selectionColor={props.selectionColor ?? selectionColor}
             placeholderTextColor={props.placeholderTextColor ?? placeholderTextColor}

@@ -150,6 +150,36 @@ describe('Default font family', () => {
         expect(getStylesFromId('input').fontFamily).toEqual('Inter')
     })
 
+    test('passes the style array unchanged when no default font applies', () => {
+        const { getByTestId } = renderUniwind(
+            <React.Fragment>
+                <Text className="p-4" style={{ color: 'red' }} testID="text">Hello</Text>
+                <TextInput testID="input" />
+                <NestedText>
+                    <Text testID="nested">Hello</Text>
+                </NestedText>
+            </React.Fragment>,
+        )
+
+        expect(getByTestId('text').props.style).toStrictEqual([{ padding: 16 }, { color: 'red' }])
+        expect(getByTestId('input').props.style).toStrictEqual([{}, undefined])
+        expect(getByTestId('nested').props.style).toStrictEqual([{}, undefined])
+    })
+
+    test('puts the default font first in the style array', () => {
+        useDefaults('Inter')
+
+        const { getByTestId } = renderUniwind(
+            <React.Fragment>
+                <Text className="p-4" style={{ color: 'red' }} testID="text">Hello</Text>
+                <TextInput testID="input" />
+            </React.Fragment>,
+        )
+
+        expect(getByTestId('text').props.style).toStrictEqual([{ fontFamily: 'Inter' }, { padding: 16 }, { color: 'red' }])
+        expect(getByTestId('input').props.style).toStrictEqual([{ fontFamily: 'Inter' }, {}, undefined])
+    })
+
     test('lets className and style choose another family', () => {
         useDefaults('Inter')
 
