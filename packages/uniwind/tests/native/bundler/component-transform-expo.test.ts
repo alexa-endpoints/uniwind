@@ -1,18 +1,14 @@
-import { getDefaultConfig, unstable_transformerPath } from '@expo/metro-config'
-import type * as ExpoMetroWorker from '@expo/metro-config/build/transform-worker/transform-worker'
+import { getDefaultConfig } from '@expo/metro-config'
 import type { JsTransformerConfig } from '@expo/metro/metro-transform-worker'
 import path from 'node:path'
 import {
-    getRawComponentNames,
-    TRANSFORM_COMPONENTS,
-    UPSTREAM_BABEL_TRANSFORMER,
+    CLASSLESS_COMPONENT_NAMES,
+    type ClasslessComponentName,
+    getDefaultClasslessComponentNames,
 } from '../../../src/bundler/adapters/metro/constants'
+import { transform as uniwindTransform } from '../../../src/bundler/adapters/metro/transformer'
 
 const PROJECT_ROOT = path.resolve(__dirname, '../../../../..')
-const UNIWIND_BABEL_TRANSFORMER = require.resolve(
-    '../../../src/bundler/adapters/metro/babel-transformer',
-)
-const expoWorker = require(unstable_transformerPath) as typeof ExpoMetroWorker
 
 const getBabelTransformerPath = (config: {
     transformer?: {
@@ -43,22 +39,29 @@ const upstreamTransformers = [
 const transform = async (
     source: string,
     {
-        components = getRawComponentNames(false),
+        components = CLASSLESS_COMPONENT_NAMES,
         filename,
         reactCompiler,
         upstreamTransformerPath,
     }: {
-        components?: ReadonlyArray<string>
+        components?: ReadonlyArray<ClasslessComponentName>
         filename: string
         reactCompiler: boolean
         upstreamTransformerPath: string
     },
 ) => {
+    // Go through Uniwind's Metro transformer so the Expo worker, the classless gate and the
+    // Babel dispatch all see the serialized component list, as they do in a Metro worker.
     const transformerConfig = {
         ...getDefaultConfig(PROJECT_ROOT).transformer as JsTransformerConfig,
-        babelTransformerPath: UNIWIND_BABEL_TRANSFORMER,
-    }
-    const result = await expoWorker.transform(
+        babelTransformerPath: upstreamTransformerPath,
+        uniwind: {
+            cssEntryFile: './global.css',
+            isExpoProject: true,
+            optimizedClasslessComponents: [...components],
+        },
+    } as unknown as Parameters<typeof uniwindTransform>[0]
+    const result: Awaited<ReturnType<typeof uniwindTransform>> = await uniwindTransform(
         transformerConfig,
         PROJECT_ROOT,
         filename,
@@ -67,8 +70,6 @@ const transform = async (
             customTransformOptions: {
                 engine: 'hermes',
                 reactCompiler,
-                [TRANSFORM_COMPONENTS]: components,
-                [UPSTREAM_BABEL_TRANSFORMER]: upstreamTransformerPath,
             },
             dev: true,
             experimentalImportSupport: true,
@@ -108,12 +109,12 @@ const fixtures = [
         source: `
             import * as React2 from "react";
             import {
-                Image as Image$1,
+                Text as Text$1,
                 View as View$1,
             } from "react-native";
 
             var View = View$1;
-            var Image = Image$1;
+            var Text = Text$1;
 
             export function Fixture({ nested }) {
                 return React2.createElement(
@@ -122,13 +123,13 @@ const fixtures = [
                     React2.createElement(
                         View,
                         null,
-                        React2.createElement(Image, null, "First"),
+                        React2.createElement(Text, null, "First"),
                     ),
                     nested
                         && React2.createElement(
                             View$1,
                             null,
-                            React2.createElement(Image$1, null, "Second"),
+                            React2.createElement(Text$1, null, "Second"),
                         ),
                 );
             }
@@ -146,11 +147,11 @@ const fixtures = [
                 return React.createElement(
                     ReactNative.View,
                     null,
-                    React.createElement(ReactNative.Image, null, "First"),
+                    React.createElement(ReactNative.Text, null, "First"),
                     React.createElement(
                         ReactNative.View,
                         null,
-                        React.createElement(ReactNative.Image, null, "Second"),
+                        React.createElement(ReactNative.Text, null, "Second"),
                     ),
                 );
             }
@@ -180,12 +181,53 @@ describe.each(upstreamTransformers)(
 
                         expect(code).not.toMatch(malformedRawComponentPattern)
                         expect(countRawComponentReferences(code, 'View')).toBe(2)
-                        expect(countRawComponentReferences(code, 'Image')).toBe(2)
+                        expect(countRawComponentReferences(code, 'Text')).toBe(2)
                         if (hasStyledAlias) {
                             expect(code).toMatch(
                                 /createElement\(\s*View\s*,\s*\{\s*className:/,
                             )
                         }
+                    },
+                )
+
+                test.each(fixtures)(
+                    'rewrites only the enabled components for $name',
+                    async ({ filename, source }) => {
+                        const code = await transform(source, {
+                            components: ['View'],
+                            filename: path.join(
+                                PROJECT_ROOT,
+                                'node_modules',
+                                '.uniwind-transform-fixtures',
+                                filename,
+                            ),
+                            reactCompiler,
+                            upstreamTransformerPath,
+                        })
+
+                        expect(code).not.toMatch(malformedRawComponentPattern)
+                        expect(countRawComponentReferences(code, 'View')).toBe(2)
+                        expect(countRawComponentReferences(code, 'Text')).toBe(0)
+                    },
+                )
+
+                test.each(fixtures)(
+                    'keeps every component on the wrapped path for an empty list with $name',
+                    async ({ filename, source }) => {
+                        const code = await transform(source, {
+                            components: [],
+                            filename: path.join(
+                                PROJECT_ROOT,
+                                'node_modules',
+                                '.uniwind-transform-fixtures',
+                                filename,
+                            ),
+                            reactCompiler,
+                            upstreamTransformerPath,
+                        })
+
+                        expect(code).not.toContain('_uniwindInternalRawComponents')
+                        expect(code).not.toContain('raw-components')
                     },
                 )
 
@@ -223,7 +265,7 @@ describe.each(upstreamTransformers)(
                 })
 
                 test.each([false, true])(
-                    'compiles classless Text to the raw component only while defaultFontFamily is off (%s)',
+                    'compiles classless Text to the raw component by default only while defaultFontFamily is off (%s)',
                     async defaultFontFamily => {
                         const code = await transform(
                             `
@@ -235,7 +277,7 @@ describe.each(upstreamTransformers)(
                                 }
                             `,
                             {
-                                components: getRawComponentNames(defaultFontFamily),
+                                components: getDefaultClasslessComponentNames({ defaultFontFamily }),
                                 filename: path.join(
                                     PROJECT_ROOT,
                                     'node_modules',

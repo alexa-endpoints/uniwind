@@ -1,13 +1,13 @@
 import type { NodePath, PluginObj, PluginPass, types as t } from '@babel/core'
 import {
-    RAW_COMPONENT_NAME_SET,
+    CLASSLESS_COMPONENT_NAME_SET,
+    type ClasslessComponentName,
     RAW_COMPONENTS_MODULE,
-    type RawComponentName,
 } from './constants'
 
 type ComponentTransformState = PluginPass & {
     opts: {
-        // The components to rewrite, from `getRawComponentNames`.
+        // Enabled components, resolved from `experimental.optimizeClasslessComponents`.
         components?: ReadonlyArray<string>
     }
 }
@@ -15,7 +15,7 @@ type ComponentTransformState = PluginPass & {
 const REACT_NATIVE_MODULE = 'react-native'
 const REACT_MODULE = 'react'
 
-const isRawComponentName = (name: string): name is RawComponentName => RAW_COMPONENT_NAME_SET.has(name)
+const isClasslessComponentName = (name: string): name is ClasslessComponentName => CLASSLESS_COMPONENT_NAME_SET.has(name)
 
 const getImportSource = (path: NodePath) =>
     path.parentPath?.isImportDeclaration()
@@ -131,7 +131,7 @@ const resolveDestructuredComponent = (
         }
 
         const componentName = getObjectPropertyName(property)
-        if (componentName && isRawComponentName(componentName)) {
+        if (componentName && isClasslessComponentName(componentName)) {
             return componentName
         }
     }
@@ -142,7 +142,7 @@ const resolveDestructuredComponent = (
 const resolveComponentReference = (
     path: NodePath | null | undefined,
     visited = new Set<t.Node>(),
-): RawComponentName | undefined => {
+): ClasslessComponentName | undefined => {
     if (!path) {
         return undefined
     }
@@ -170,7 +170,7 @@ const resolveComponentReference = (
         if (
             !Array.isArray(property)
             && (property.isIdentifier() || property.isJSXIdentifier())
-            && isRawComponentName(property.node.name)
+            && isClasslessComponentName(property.node.name)
             && !Array.isArray(object)
             && isModuleNamespace(object, REACT_NATIVE_MODULE, visited)
         ) {
@@ -193,7 +193,7 @@ const resolveComponentReference = (
     if (binding.path.isImportSpecifier() && getImportSource(binding.path) === REACT_NATIVE_MODULE) {
         const importedName = getImportedName(binding.path)
 
-        return importedName && isRawComponentName(importedName)
+        return importedName && isClasslessComponentName(importedName)
             ? importedName
             : undefined
     }
@@ -313,7 +313,7 @@ const getEnabledComponents = ({ opts }: ComponentTransformState) => {
         throw new Error('Uniwind: The component transform requires the enabled component list')
     }
 
-    return new Set<string>(opts.components)
+    return new Set(opts.components)
 }
 
 export const componentTransform = ({ types }: { types: typeof t }): PluginObj<ComponentTransformState> => ({
@@ -328,8 +328,8 @@ export const componentTransform = ({ types }: { types: typeof t }): PluginObj<Co
                     ? componentName
                     : undefined
             }
-            const rawIdentifiers = new Map<RawComponentName, t.Identifier>()
-            const getRawIdentifier = (componentName: RawComponentName) => {
+            const rawIdentifiers = new Map<ClasslessComponentName, t.Identifier>()
+            const getRawIdentifier = (componentName: ClasslessComponentName) => {
                 const existing = rawIdentifiers.get(componentName)
                 if (existing) {
                     return existing

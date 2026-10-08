@@ -112,8 +112,9 @@ registration during HMR and disposes only its own registration.
 `experimental.optimizeClasslessComponents` can be enabled beside
 `federation`. It only changes native classless component dispatch; elements
 that may use class props stay on the wrapper path, and federation ownership and
-web output are unchanged. With `defaultFontFamily` on, classless `Text` and
-`TextInput` stay on the wrapper too. The host's `defaultFontFamily` applies at
+web output are unchanged. With `defaultFontFamily` on, `true` keeps classless
+`Text` and `TextInput` on the wrapper too; a predicate that enables them sends
+them raw, without the default font. The host's `defaultFontFamily` applies at
 runtime, so a remote should set the same value for its classless dispatch to
 match.
 

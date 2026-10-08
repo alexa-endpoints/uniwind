@@ -40,12 +40,13 @@ const componentTransformOptionsCache = new Map<string, { components: ReadonlyArr
 
 const getComponentTransformOptions = (components: ReadonlyArray<string>) => {
     const key = components.join(',')
-    let options = componentTransformOptionsCache.get(key)
-
-    if (options === undefined) {
-        options = { components: [...components] }
-        componentTransformOptionsCache.set(key, options)
+    const cached = componentTransformOptionsCache.get(key)
+    if (cached) {
+        return cached
     }
+
+    const options = { components: [...components] }
+    componentTransformOptionsCache.set(key, options)
 
     return options
 }

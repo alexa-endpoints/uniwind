@@ -5,7 +5,7 @@ import { TRANSFORM_COMPONENTS } from '../../../src/bundler/adapters/metro/consta
 import { withUniwindConfig } from '../../../src/bundler/adapters/metro/metro'
 import { projectArtifactPath, transform } from '../../../src/bundler/adapters/metro/transformer'
 import { UniwindBundlerConfig } from '../../../src/bundler/config'
-import type { UniwindMetroConfig } from '../../../src/bundler/types'
+import type { UniwindExperimentalConfig, UniwindMetroConfig } from '../../../src/bundler/types'
 import { Platform } from '../../../src/common/consts'
 
 const mockWorkerTransform = jest.fn(
@@ -154,22 +154,33 @@ describe('defaultFontFamily option', () => {
         expect(readFileSync(artifactPaths.off!, 'utf-8')).not.toContain('@custom-variant ocean')
     })
 
-    test.each([
-        [undefined, ['Text', 'TextInput']],
-        [true, []],
-    ])('decides whether classless Text and TextInput compile to raw components (defaultFontFamily %s)', async (defaultFontFamily, textComponents) => {
-        await runTransform(
-            hostConfig({ defaultFontFamily, experimental: { optimizeClasslessComponents: true } }),
-            'App.tsx',
-            `import { Text, View } from 'react-native'`,
-            Platform.iOS,
-        )
+    // A predicate decides for itself, so it can still send Text or TextInput raw, without the default font.
+    test.each<[string, boolean | undefined, UniwindExperimentalConfig['optimizeClasslessComponents'], Array<string>]>([
+        ['true', undefined, true, ['Text', 'TextInput']],
+        ['true', true, true, []],
+        ['a predicate that adds Text', true, (component, { isDefault }) => isDefault || component === 'Text', ['Text']],
+    ])(
+        'decides whether classless Text and TextInput compile to raw components (%s, defaultFontFamily %s)',
+        async (_, defaultFontFamily, optimizeClasslessComponents, textComponents) => {
+            // Metro's workers get the config `withUniwindConfig` resolves the option into.
+            const config = withUniwindConfig(
+                { projectRoot: process.cwd() } as MetroConfig,
+                hostConfig({ defaultFontFamily, experimental: { optimizeClasslessComponents } }),
+            )
 
-        const options = mockWorkerTransform.mock.calls[0]?.[4] as { customTransformOptions: Record<string, unknown> }
-        const components = options.customTransformOptions[TRANSFORM_COMPONENTS] as Array<string>
+            await runTransform(
+                (config.transformer as { uniwind: UniwindMetroConfig }).uniwind,
+                'App.tsx',
+                `import { Text, View } from 'react-native'`,
+                Platform.iOS,
+            )
 
-        expect(components).toContain('View')
-        expect(components).not.toContain('SafeAreaView')
-        expect(components.filter(component => component === 'Text' || component === 'TextInput')).toEqual(textComponents)
-    })
+            const options = mockWorkerTransform.mock.calls[0]?.[4] as { customTransformOptions: Record<string, unknown> }
+            const components = options.customTransformOptions[TRANSFORM_COMPONENTS] as Array<string>
+
+            expect(components).toContain('View')
+            expect(components).not.toContain('SafeAreaView')
+            expect(components.filter(component => component === 'Text' || component === 'TextInput')).toEqual(textComponents)
+        },
+    )
 })
