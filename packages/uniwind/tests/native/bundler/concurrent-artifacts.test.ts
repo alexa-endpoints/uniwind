@@ -8,12 +8,12 @@ jest.mock('metro-transform-worker', () => ({
     }),
 }))
 
-const createProject = (directory: string, name: string, className: string) => {
+const createProject = (directory: string, name: string, className: string, ...cssLines: Array<string>) => {
     const projectDirectory = path.join(directory, name)
     const cssPath = path.join(projectDirectory, 'global.css')
 
     mkdirSync(projectDirectory)
-    writeFileSync(cssPath, ['@import "tailwindcss";', '@import "uniwind";'].join('\n'))
+    writeFileSync(cssPath, ['@import "tailwindcss";', '@import "uniwind";', ...cssLines].join('\n'))
     writeFileSync(path.join(projectDirectory, 'App.tsx'), `export const className = '${className}'`)
 
     return cssPath
@@ -68,6 +68,49 @@ describe('concurrent project artifacts', () => {
         } finally {
             rmSync(directory, { force: true, recursive: true })
             ;[oceanCSSPath, plainCSSPath].map(projectArtifactPath).filter(existsSync).forEach(artifactPath => {
+                rmSync(artifactPath, { force: true })
+            })
+        }
+    })
+
+    test('discovers each project\'s theme variants when builds with different themes overlap', async () => {
+        const directory = mkdtempSync(path.join(process.cwd(), '.tmp-concurrent-artifacts-'))
+        // Neither project's artifact exists yet, and the shared uniwind.css their `@import "uniwind"`
+        // resolves to declares neither extra theme nor the theme variable both entries apply.
+        const themeBlock = (theme: string, color: string) =>
+            [
+                '@layer theme {',
+                '    :root {',
+                '        @variant light { --color-surface: #ffffff; }',
+                '        @variant dark { --color-surface: #000000; }',
+                `        @variant ${theme} { --color-surface: ${color}; }`,
+                '    }',
+                '}',
+            ].join('\n')
+        const applyBlock = '@layer components { .card { @apply bg-surface; } }'
+        const oceanCSSPath = createProject(directory, 'ocean', 'bg-surface', themeBlock('ocean', '#0000ff'), applyBlock)
+        const forestCSSPath = createProject(directory, 'forest', 'bg-surface', themeBlock('forest', '#00ff00'), applyBlock)
+
+        try {
+            const outputs = await Promise.all(
+                Array.from({ length: 4 }, (_, index) =>
+                    index % 2 === 0
+                        ? transformCSS(oceanCSSPath, ['ocean'])
+                        : transformCSS(forestCSSPath, ['forest'])),
+            )
+
+            outputs.forEach((code, index) => {
+                const [theme, color, otherTheme] = index % 2 === 0
+                    ? ['ocean', '#0000ff', 'forest']
+                    : ['forest', '#00ff00', 'ocean']
+
+                expect(code).toContain('"className": "bg-surface"')
+                expect(code).toContain(`"__uniwind-theme-${theme}": ({ "--color-surface": vars => "${color}", })`)
+                expect(code).not.toContain(otherTheme)
+            })
+        } finally {
+            rmSync(directory, { force: true, recursive: true })
+            ;[oceanCSSPath, forestCSSPath].map(projectArtifactPath).filter(existsSync).forEach(artifactPath => {
                 rmSync(artifactPath, { force: true })
             })
         }
