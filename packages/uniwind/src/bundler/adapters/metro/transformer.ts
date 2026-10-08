@@ -19,12 +19,14 @@ export const cssArtifactPath = path.resolve(__dirname, '../../uniwind.css')
 // Projects with different themes, such as a federation host and its remotes, can build at the
 // same time from one installed package. Each compiles against its own artifact rather than the
 // shared stylesheet another build may be rewriting.
-export const projectArtifactPath = (cssPath: string) =>
-    path.resolve(
-        __dirname,
-        '../../.artifacts',
-        `${createHash('sha256').update(path.resolve(cssPath)).digest('hex').slice(0, 16)}.css`,
-    )
+export const projectArtifactPath = (cssPath: string, cssArtifactFile?: string) =>
+    cssArtifactFile !== undefined
+        ? path.resolve(process.cwd(), cssArtifactFile)
+        : path.resolve(
+            __dirname,
+            '../../.artifacts',
+            `${createHash('sha256').update(path.resolve(cssPath)).digest('hex').slice(0, 16)}.css`,
+        )
 
 // Cache workers separately for Expo (`true`) and plain Metro (`false`) configs.
 const workerCache = new Map<boolean, typeof MetroTransformWorker>()
@@ -144,7 +146,7 @@ export const transform = async (
 
     // For an inlined remote, artifact generation stays on the host entry so
     // concurrent workers compiling either stylesheet write identical bytes.
-    const artifactPath = projectArtifactPath(baseBundlerConfig.cssPath)
+    const artifactPath = projectArtifactPath(baseBundlerConfig.cssPath, config.uniwind.cssArtifactFile)
 
     fs.mkdirSync(path.dirname(artifactPath), { recursive: true })
     await baseBundlerConfig.generateArtifacts(artifactPath)

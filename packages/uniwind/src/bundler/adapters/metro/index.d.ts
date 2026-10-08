@@ -36,6 +36,11 @@ type UniwindConfig = {
     cssEntryFile: string
     extraThemes?: Array<string>
     dtsFile?: string
+    /**
+     * Path of this project's generated Uniwind stylesheet, resolved from the working directory.
+     * Defaults to a file inside the installed package keyed by `cssEntryFile`.
+     */
+    cssArtifactFile?: string
     polyfills?: Polyfills
     debug?: boolean
     isTV?: boolean

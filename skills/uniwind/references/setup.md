@@ -42,6 +42,7 @@ module.exports = withUniwindConfig(config, {
   polyfills: { rem: 16 },                // Optional — base rem value (default 16)
   extraThemes: ['ocean', 'sunset'],       // Optional — custom themes beyond light/dark
   dtsFile: './uniwind-types.d.ts',        // Optional — TypeScript types output path
+  cssArtifactFile: './.uniwind/uniwind.css', // Optional — generated stylesheet path (default: inside the installed package)
   debug: true,                            // Optional — log unsupported CSS in dev
   isTV: false,                            // Optional — enable TV platform support
 });
