@@ -133,8 +133,9 @@ Metro integration:
   to raw React Native components; styled or uncertain references keep existing wrappers, and so do
   `Text` and `TextInput` while `defaultFontFamily` is on, because only their wrappers apply the
   default font. The deprecated `SafeAreaView` always keeps its wrapper, because React Native warns
-  when that export is read. The transformer passes the Babel transform the list of components to
-  rewrite (`getRawComponentNames`).
+  when that export is read, and every export of the raw-component module gets read: by Fast Refresh
+  in development, and on evaluation under Metro's non-live import/export transform. The transformer
+  passes the Babel transform the list of components to rewrite (`getRawComponentNames`).
 - Metro transformer worker selection is lazy, cached per Expo/non-Expo config type, and follows Expo transformer paths or Expo-specific config markers.
 - Host native platform CSS transforms into a JS module that calls `Uniwind.__reinit(...)` with a fingerprint of the generated styles, themes, and runtime options, then the runtime options themselves. During development, the native runtime skips reinitialization when that fingerprint is unchanged, so toggling `defaultFontFamily` reinitializes even though the styles are the same. Mounted text that rendered with the option off subscribed to nothing and picks a newly enabled default up when it next renders.
 - Federated remote native CSS transforms into an owner-keyed merge registration, declaring its imported stylesheets in development like a host entry.
