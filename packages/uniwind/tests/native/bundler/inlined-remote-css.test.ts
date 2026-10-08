@@ -1,6 +1,6 @@
 import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { projectArtifactPath, transform } from '../../../src/bundler/adapters/metro/transformer'
+import { transform } from '../../../src/bundler/adapters/metro/transformer'
 import { UniwindBundlerConfig } from '../../../src/bundler/config'
 import { Uniwind } from '../../../src/core/config/config.native'
 import { UniwindStore } from '../../../src/core/native'
@@ -26,6 +26,8 @@ const mockWorkerTransform = jest.fn(
 jest.mock('metro-transform-worker', () => ({
     transform: mockWorkerTransform,
 }))
+
+jest.mock('../../../src/bundler/adapters/metro/artifact-paths', () => require('./temporaryArtifactPaths'))
 
 const transformCSS = (
     uniwind: Parameters<typeof transform>[0]['uniwind'],
@@ -120,7 +122,6 @@ describe('inlined remote CSS', () => {
             expect(artifactCSSPaths).toEqual([hostCSSPath, hostCSSPath, hostCSSPath])
         } finally {
             rmSync(directory, { force: true, recursive: true })
-            rmSync(projectArtifactPath(UniwindBundlerConfig.fromMetroConfig(uniwind)), { force: true })
         }
     })
 
@@ -197,7 +198,6 @@ describe('inlined remote CSS', () => {
         } finally {
             disposers.splice(0).forEach(dispose => dispose())
             rmSync(directory, { force: true, recursive: true })
-            rmSync(projectArtifactPath(UniwindBundlerConfig.fromMetroConfig(uniwind)), { force: true })
         }
     })
 })
