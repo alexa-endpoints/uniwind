@@ -11,11 +11,15 @@ import type { JsTransformerConfig, JsTransformOptions } from 'metro-transform-wo
 import { createHash } from 'node:crypto'
 import path from 'path'
 import { packageDirectory, projectArtifactsDirectory, sharedArtifactPath } from './artifact-paths'
+import { getRawComponentsPath, getRawComponentsSource } from './classless-components'
 import {
-    getRawComponentNames,
     TRANSFORM_COMPONENTS,
     UPSTREAM_BABEL_TRANSFORMER,
 } from './constants'
+
+type UniwindTransformerConfig = JsTransformerConfig & {
+    uniwind: UniwindMetroConfig
+}
 
 // Each project compiles against its own artifact instead of the shared stylesheet, which another
 // build may be rewriting. The key covers the entry and every config input that changes the artifact,
@@ -112,14 +116,27 @@ const getTransformWorker = (isExpoProject?: boolean): typeof MetroTransformWorke
     return resolvedWorker
 }
 
+// Metro asks only the module at `transformerPath` for a cache key, so delegate to the upstream worker,
+// whose key hashes the whole transformer config: `uniwind.optimizedClasslessComponents` and
+// `uniwind.transformerFingerprint` included. Under Expo CLI's supervising worker, Expo's own
+// `getCacheKey` runs instead and hashes the same config.
+export const getCacheKey = (
+    config: UniwindTransformerConfig,
+    options?: Readonly<{ projectRoot: string }>,
+) => getTransformWorker(config.uniwind.isExpoProject).getCacheKey?.(config, options) ?? ''
+
+// A file can only reference an enabled component by its name, so files that never mention one skip the
+// Babel dispatch. Substring matches only cost a dispatch; the Babel transform still matches exact names.
+// The list comes first: the default config enables no component, and then no file is read at all.
 export const shouldTransformClasslessComponents = (
-    config: Pick<UniwindMetroConfig, 'experimental'>,
+    config: Pick<UniwindMetroConfig, 'optimizedClasslessComponents'>,
     data: Buffer,
     options: Pick<JsTransformOptions, 'platform' | 'type'>,
-) => config.experimental?.optimizeClasslessComponents === true
+) => (config.optimizedClasslessComponents?.length ?? 0) > 0
     && options.type !== 'asset'
     && options.platform !== Platform.Web
     && data.includes('react-native')
+    && config.optimizedClasslessComponents?.some(component => data.includes(component)) === true
 
 const findInlinedRemote = (
     config: UniwindMetroConfig,
@@ -140,15 +157,25 @@ const findInlinedRemote = (
 }
 
 export const transform = async (
-    config: JsTransformerConfig & {
-        uniwind: UniwindMetroConfig
-    },
+    config: UniwindTransformerConfig,
     projectRoot: string,
     filePath: string,
     data: Buffer,
     options: JsTransformOptions,
 ) => {
     const worker = getTransformWorker(config.uniwind.isExpoProject)
+    const classlessComponents = config.uniwind.optimizedClasslessComponents ?? []
+
+    if (classlessComponents.length > 0 && path.resolve(projectRoot, filePath) === getRawComponentsPath()) {
+        return worker.transform(
+            config,
+            projectRoot,
+            filePath,
+            Buffer.from(getRawComponentsSource(classlessComponents), 'utf-8'),
+            options,
+        )
+    }
+
     const inlinedRemote = options.type !== 'asset'
         ? findInlinedRemote(config.uniwind, projectRoot, filePath)
         : undefined
@@ -198,7 +225,7 @@ export const transform = async (
                 ...options,
                 customTransformOptions: {
                     ...options.customTransformOptions,
-                    [TRANSFORM_COMPONENTS]: getRawComponentNames(config.uniwind.defaultFontFamily === true),
+                    [TRANSFORM_COMPONENTS]: classlessComponents,
                     [UPSTREAM_BABEL_TRANSFORMER]: config.babelTransformerPath,
                 },
             },

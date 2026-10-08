@@ -1,4 +1,6 @@
-// Every name in RAW_COMPONENT_NAMES: all wrapped components but the deprecated SafeAreaView.
+// Every eligible component, so keep this in sync with `CLASSLESS_COMPONENT_NAMES`. Metro resolves this
+// module only while at least one component is enabled, and the Uniwind transformer serves it with
+// re-exports of the enabled components only.
 export {
     ActivityIndicator,
     Button,
