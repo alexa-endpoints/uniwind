@@ -7,7 +7,11 @@ import { OVERWRITE_CSS } from './overwrite'
 import { generateCSSForThemes } from './themes'
 import { VARIANTS_CSS } from './variants'
 
-export const buildCSS = async (themes: Array<string>, input: string, cssFilePath: string) => {
+type BuildCSSOptions = {
+    defaultFontFamily?: boolean
+}
+
+export const buildCSS = async (themes: Array<string>, input: string, cssFilePath: string, { defaultFontFamily = false }: BuildCSSOptions = {}) => {
     const themesCSS = await generateCSSForThemes(themes, input)
     const oldCSSFile = fs.existsSync(cssFilePath)
         ? fs.readFileSync(cssFilePath, 'utf-8')
@@ -18,7 +22,7 @@ export const buildCSS = async (themes: Array<string>, input: string, cssFilePath
         INSETS_CSS,
         OVERWRITE_CSS,
         EXTRA_UTILITIES_CSS,
-        DEFAULT_FONT_CSS,
+        ...defaultFontFamily ? [DEFAULT_FONT_CSS] : [],
         themesCSS,
     ].join('\n')
 

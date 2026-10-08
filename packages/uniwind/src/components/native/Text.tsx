@@ -4,7 +4,6 @@ import { Text as RNText } from 'react-native'
 import type { ComponentState } from '../../core/types'
 import { copyComponentProperties } from '../utils'
 import { useAccentColor } from './useAccentColor'
-import { useDefaultFontFamily } from './useDefaultFontFamily'
 import { useStyle } from './useStyle'
 
 type StyleWithWebkitLineClamp = {
@@ -17,14 +16,13 @@ export const Text = copyComponentProperties(RNText, (props: TextProps) => {
         isPressed,
         isDisabled: Boolean(props.disabled),
     } satisfies ComponentState
-    const style = useStyle(props.className, props, state)
-    const defaultFontFamily = useDefaultFontFamily('text')
+    const style = useStyle(props.className, props, state, 'text')
     const selectionColor = useAccentColor(props.selectionColorClassName, props, state)
 
     return (
         <RNText
             {...props}
-            style={defaultFontFamily === undefined ? [style, props.style] : [defaultFontFamily, style, props.style]}
+            style={[style, props.style]}
             selectionColor={props.selectionColor ?? selectionColor}
             numberOfLines={(style as StyleWithWebkitLineClamp).WebkitLineClamp ?? props.numberOfLines}
             onPressIn={event => {

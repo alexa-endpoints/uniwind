@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'fs'
-import { CSS_PATH } from './global-setup'
+import { CSS_PATH, DEFAULT_FONT_CSS_PATH } from './global-setup'
 
-const compiledCSS = readFileSync(CSS_PATH, 'utf-8')
+const compiledCSS = readFileSync(DEFAULT_FONT_CSS_PATH, 'utf-8')
 
 // The font stack React Native Web expands `System` to.
 const RNW_SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
@@ -47,4 +47,9 @@ test('font utilities still win over the default font', async ({ page }) => {
 test('without the token root text takes the React Native Web System stack, not the page font', async ({ page }) => {
     expect(await fontOf(page, 'page')).toBe('serif')
     expect(await fontOf(page, 'no-token')).toBe(await fontOf(page, 'system'))
+})
+
+test('a config that leaves the option off ships no default font rule', () => {
+    expect(readFileSync(CSS_PATH, 'utf-8')).not.toContain('uniwind-default-font')
+    expect(compiledCSS).toContain('.uniwind-default-font')
 })

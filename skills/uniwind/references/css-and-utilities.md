@@ -249,6 +249,8 @@ React Native requires a **single font** per family — no fallbacks:
 
 Font name must **exactly match** the font file name (without extension).
 
+**Default font for root text (opt-in)**: by default, `Text` and `TextInput` without a font class use the platform font on native and React Native Web's System font on web. Set `defaultFontFamily: true` in `withUniwindConfig` or the Vite plugin to start them from the theme's `--default-font-family`, which Tailwind derives from `--font-sans`; restart Metro after changing it. Native needs a single family there: a fallback list keeps the platform font. A federated remote should use its host's setting.
+
 **Expo**: Configure fonts in `app.json` with the `expo-font` plugin, then reference in CSS.
 
 **Bare RN**: Use `react-native-asset` to link fonts, same CSS config.

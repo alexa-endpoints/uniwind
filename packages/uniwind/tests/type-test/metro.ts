@@ -38,3 +38,17 @@ withUniwindConfig(metroConfig, {
         role: 'host',
     },
 })
+
+withUniwindConfig(metroConfig, {
+    cssEntryFile: './global.css',
+    defaultFontFamily: true,
+    experimental: {
+        optimizeClasslessComponents: true,
+    },
+})
+
+withUniwindConfig(metroConfig, {
+    cssEntryFile: './global.css',
+    // @ts-expect-error The family itself comes from the theme's --default-font-family.
+    defaultFontFamily: 'Inter',
+})
