@@ -7,10 +7,15 @@ import type * as MetroTransformWorker from 'metro-transform-worker'
 import type { JsTransformerConfig, JsTransformOptions } from 'metro-transform-worker'
 import { createHash } from 'node:crypto'
 import path from 'path'
+import { getRawComponentsPath, getRawComponentsSource } from './classless-components'
 import {
     TRANSFORM_COMPONENTS,
     UPSTREAM_BABEL_TRANSFORMER,
 } from './constants'
+
+type UniwindTransformerConfig = JsTransformerConfig & {
+    uniwind: UniwindMetroConfig
+}
 
 const cssArtifactPath = path.resolve(__dirname, '../../uniwind.css')
 
@@ -42,25 +47,46 @@ const getTransformWorker = (isExpoProject?: boolean): typeof MetroTransformWorke
     return resolvedWorker
 }
 
+// Metro asks only the module at `transformerPath` for a cache key, so delegate to the upstream worker,
+// whose key hashes the whole transformer config: `uniwind.optimizedClasslessComponents` and
+// `uniwind.transformerFingerprint` included. Under Expo CLI's supervising worker, Expo's own
+// `getCacheKey` runs instead and hashes the same config.
+export const getCacheKey = (
+    config: UniwindTransformerConfig,
+    options?: Readonly<{ projectRoot: string }>,
+) => getTransformWorker(config.uniwind.isExpoProject).getCacheKey?.(config, options) ?? ''
+
+// A file can only reference an enabled component by its name, so files that never mention one skip the
+// Babel dispatch. Substring matches only cost a dispatch; the Babel transform still matches exact names.
 export const shouldTransformClasslessComponents = (
-    config: Pick<UniwindMetroConfig, 'experimental'>,
+    config: Pick<UniwindMetroConfig, 'optimizedClasslessComponents'>,
     data: Buffer,
     options: Pick<JsTransformOptions, 'platform' | 'type'>,
-) => config.experimental?.optimizeClasslessComponents === true
-    && options.type !== 'asset'
+) => options.type !== 'asset'
     && options.platform !== Platform.Web
     && data.includes('react-native')
+    && config.optimizedClasslessComponents?.some(component => data.includes(component)) === true
 
 export const transform = async (
-    config: JsTransformerConfig & {
-        uniwind: UniwindMetroConfig
-    },
+    config: UniwindTransformerConfig,
     projectRoot: string,
     filePath: string,
     data: Buffer,
     options: JsTransformOptions,
 ) => {
     const worker = getTransformWorker(config.uniwind.isExpoProject)
+    const classlessComponents = config.uniwind.optimizedClasslessComponents ?? []
+
+    if (classlessComponents.length > 0 && path.resolve(projectRoot, filePath) === getRawComponentsPath()) {
+        return worker.transform(
+            config,
+            projectRoot,
+            filePath,
+            Buffer.from(getRawComponentsSource(classlessComponents), 'utf-8'),
+            options,
+        )
+    }
+
     const isCss = options.type !== 'asset' && path.join(process.cwd(), config.uniwind.cssEntryFile) === path.join(projectRoot, filePath)
 
     if (filePath.endsWith('/components/web/metro-injected.js')) {
@@ -105,7 +131,7 @@ export const transform = async (
                 ...options,
                 customTransformOptions: {
                     ...options.customTransformOptions,
-                    [TRANSFORM_COMPONENTS]: true,
+                    [TRANSFORM_COMPONENTS]: classlessComponents,
                     [UPSTREAM_BABEL_TRANSFORMER]: config.babelTransformerPath,
                 },
             },

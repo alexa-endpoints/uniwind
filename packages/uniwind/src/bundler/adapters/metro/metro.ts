@@ -4,8 +4,11 @@ import { Platform } from '@/common/consts'
 import type { MetroConfig } from 'metro-config'
 import type * as MetroResolverModule from 'metro-resolver'
 import type { CustomResolver } from 'metro-resolver'
+import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
+import { getRawComponentsPath, resolveClasslessComponents } from './classless-components'
 import { RAW_COMPONENTS_MODULE } from './constants'
 import { cacheStore, patchMetroGraphToIncludeCssInLazyGraphs, patchMetroGraphToSupportUncachedModules } from './patches'
 import { isInternalOrigin, nativeResolver, webResolver } from './resolvers'
@@ -24,19 +27,43 @@ const isExpoMetroConfig = (config: MetroConfig) => {
     )
 }
 
+// Expo CLI moves a custom `transformerPath` behind its supervising worker, whose cache key hashes the
+// transformer config but neither of Uniwind's transformer files, so the config carries their hash.
+// Built transformers name their content-hashed shared chunks, so this also covers those chunks.
+const getTransformerFingerprint = () => {
+    const hash = createHash('sha1')
+
+    for (const filePath of [require.resolve('./transformer.cjs'), require.resolve('./babel-transformer.cjs')]) {
+        hash.update(readFileSync(filePath))
+    }
+
+    return hash.digest('hex')
+}
+
+// Metro serializes `config.transformer` into its workers and cannot carry a predicate, so the option
+// is resolved once here, before Metro is patched, into the list of enabled components.
+const toWorkerConfig = (bundlerConfig: UniwindBundlerConfig, isExpoProject: boolean): UniwindMetroConfig => {
+    const metroConfig = bundlerConfig.toMetroConfig(isExpoProject)
+    const { optimizeClasslessComponents, ...experimental } = metroConfig.experimental ?? {}
+
+    return {
+        ...metroConfig,
+        experimental,
+        optimizedClasslessComponents: resolveClasslessComponents(optimizeClasslessComponents),
+        transformerFingerprint: getTransformerFingerprint(),
+    }
+}
+
 export const withUniwindConfig = <T extends MetroConfig>(
     config: T,
     uniwindConfig: UniwindMetroConfig,
 ): T => {
     const bundlerConfig = UniwindBundlerConfig.fromMetroConfig(uniwindConfig)
+    const uniwindMetroConfig = toWorkerConfig(bundlerConfig, isExpoMetroConfig(config))
     const pinnedUniwindOrigin = join(config.projectRoot ?? process.cwd(), 'package.json')
     const { resolve: metroResolve } = createRequire(require.resolve('metro/package.json'))('metro-resolver') as typeof MetroResolverModule
-    const optimizeClasslessComponents = uniwindConfig.experimental?.optimizeClasslessComponents === true
-    const rawComponentsPath = optimizeClasslessComponents
-        ? join(
-            dirname(require.resolve('uniwind/package.json')),
-            'src/bundler/adapters/metro/raw-components.ts',
-        )
+    const rawComponentsPath = uniwindMetroConfig.optimizedClasslessComponents?.length
+        ? getRawComponentsPath()
         : undefined
 
     patchMetroGraphToIncludeCssInLazyGraphs(resolve(process.cwd(), uniwindConfig.cssEntryFile))
@@ -48,7 +75,7 @@ export const withUniwindConfig = <T extends MetroConfig>(
         transformerPath: require.resolve('./transformer.cjs'),
         transformer: {
             ...config.transformer,
-            uniwind: bundlerConfig.toMetroConfig(isExpoMetroConfig(config)),
+            uniwind: uniwindMetroConfig,
         },
         resolver: {
             ...config.resolver,
