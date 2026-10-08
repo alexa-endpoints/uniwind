@@ -116,11 +116,18 @@ web output are unchanged. With `defaultFontFamily` on, `true` keeps classless
 `Text` and `TextInput` on the wrapper too; a predicate that enables them sends
 them raw, without the default font. The host's `defaultFontFamily` applies at
 runtime, so a remote should set the same value for its classless dispatch to
-match.
+match. It reaches remote text only when the remote shares `uniwind/components`
+and its subpaths with the host, as `eager-remote` does. This demo shares only
+the `uniwind` root, so its remotes render `Text` and `TextInput` through their
+own copy of Uniwind's components, which render them as with the option off
+whatever the host sets.
 
 On web, Tailwind prefixing isolates generated selectors and theme variables.
 The remote entries import only `tailwindcss/theme.css`,
-`tailwindcss/utilities.css`, and `uniwind`; they do not import Preflight.
+`tailwindcss/utilities.css`, and `uniwind`; they do not import Preflight. Like
+Tailwind's own setup without Preflight, they start with
+`@layer theme, base, components, utilities;`, so the layers keep Tailwind's
+order whichever stylesheet the page loads first.
 
 ## MF/Expo compatibility changes
 

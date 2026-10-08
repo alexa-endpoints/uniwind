@@ -95,6 +95,19 @@ describe('Default font family while the option is on', () => {
         expect(getByTestId('inner')).not.toHaveClass('uniwind-default-font')
     })
 
+    // Web tracks nesting through Uniwind's own context, which raw React Native Web text doesn't
+    // provide; native reads React Native's and inherits there.
+    test('marks text nested in raw React Native Web text, whose ancestor context it cannot read', () => {
+        const { getByTestId } = render(
+            <RNText testID="outer">
+                Outer <Text testID="inner">inner</Text>
+            </RNText>,
+        )
+
+        expect(getByTestId('outer')).not.toHaveClass('uniwind-default-font')
+        expect(getByTestId('inner')).toHaveClass('uniwind-default-font')
+    })
+
     test('marks inputs nested in text, matching native inputs that never inherit', () => {
         const { getByTestId } = render(
             <Text className="font-mono" testID="outer">

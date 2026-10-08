@@ -170,3 +170,47 @@ describe('shared uniwind.css', () => {
         expect(warn.mock.calls[0]?.[0]).toContain('EACCES')
     })
 })
+
+// A read-only install refuses every write inside the package: the shared copy and each project's
+// artifact. Only the copy is best-effort; the build compiles against the project's artifact.
+const refuseWritesInPackage = () => {
+    const packageDirectory = path.dirname(sharedArtifactPath)
+    const isInPackage = (file: unknown) => String(file).startsWith(`${packageDirectory}${path.sep}`)
+    const refuse = (file: unknown) => Object.assign(new Error(`EACCES: permission denied, open '${String(file)}'`), { code: 'EACCES' })
+    const { mkdirSync, writeFileSync } = fs
+
+    jest.spyOn(Logger, 'warn').mockImplementation(() => {})
+    jest.spyOn(fs, 'mkdirSync').mockImplementation((directory, ...args) => {
+        if (isInPackage(directory) && !fs.existsSync(directory)) {
+            throw refuse(directory)
+        }
+
+        return mkdirSync(directory, ...args)
+    })
+    jest.spyOn(fs, 'writeFileSync').mockImplementation((file, ...args) => {
+        if (isInPackage(file)) {
+            throw refuse(file)
+        }
+
+        return writeFileSync(file, ...args)
+    })
+}
+
+describe('read-only install', () => {
+    test('builds a project whose artifact is already current', async () => {
+        const project = createProject(['current'])
+
+        await transformCSS(project)
+        refuseWritesInPackage()
+
+        await expect(transformCSS(project)).resolves.toContain('Uniwind.__reinit(')
+    })
+
+    test('fails a project whose artifact is missing', async () => {
+        const project = createProject(['missing'])
+
+        refuseWritesInPackage()
+
+        await expect(transformCSS(project)).rejects.toMatchObject({ code: 'EACCES' })
+    })
+})
