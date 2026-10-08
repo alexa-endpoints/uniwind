@@ -130,8 +130,10 @@ export const generateCSSForThemes = async (themes: Array<string>, input: string)
         // validates anything: when the compile fails after reaching stylesheets that declare theme variables, it
         // is retried with them. Any other error, such as an @import that doesn't resolve, fails artifact
         // generation instead of leaving theme variables out.
-        const discoverCSSPaths = () =>
-            compile(
+        const discoverCSSPaths = () => {
+            let isLoadingModules = false
+
+            return compile(
                 [
                     ...generateThemeVariantsCSS(themes),
                     `@import "${DISCOVERY_ENTRY}";`,
@@ -140,13 +142,22 @@ export const generateCSSForThemes = async (themes: Array<string>, input: string)
                 {
                     base: path.dirname(inputPath),
                     customCssResolver: id => Promise.resolve(id === DISCOVERY_ENTRY ? inputPath : undefined),
+                    // Tailwind resolves every @import before it loads the modules of @plugin and @config, and it also
+                    // reports the files those modules load, or seem to: it traces their import and require strings,
+                    // whatever the file type. So only the dependencies reported before a module resolves are stylesheets.
+                    customJsResolver: () => {
+                        isLoadingModules = true
+
+                        return Promise.resolve(undefined)
+                    },
                     onDependency: dependency => {
-                        if (!isExcludedDependency(dependency)) {
+                        if (!isLoadingModules && !isExcludedDependency(dependency)) {
                             cssPaths.add(dependency)
                         }
                     },
                 },
             )
+        }
 
         await discoverCSSPaths().catch(async (error: unknown) => {
             // Lightning CSS can't scan every stylesheet Tailwind accepts. A failed compile still reports its own error.
