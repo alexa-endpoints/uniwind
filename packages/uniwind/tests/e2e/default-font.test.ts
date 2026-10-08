@@ -4,9 +4,13 @@ import { CSS_PATH } from './global-setup'
 
 const compiledCSS = readFileSync(CSS_PATH, 'utf-8')
 
+// The font stack React Native Web expands `System` to.
+const RNW_SYSTEM_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+
 // React Native Web declares @layer rnw before the app stylesheet, at runtime and
 // in statically rendered HTML alike, and resets root text to `font: 14px System`
-// there. Georgia stands in for the app's own --default-font-family.
+// there. Georgia stands in for the app's own --default-font-family. The page font
+// is serif, so text that only inherits it can't pass for the System stack.
 test.beforeEach(async ({ page }) => {
     await page.setContent(`
         <!DOCTYPE html>
@@ -14,9 +18,11 @@ test.beforeEach(async ({ page }) => {
         <head>
             <style>@layer rnw { .rnw-text-reset { font: 14px Courier; } }</style>
             <style>${compiledCSS}</style>
-            <style>#themed { --default-font-family: Georgia; }</style>
+            <style>html { font-family: serif; } #themed { --default-font-family: Georgia; }</style>
         </head>
         <body>
+            <div id="page">Text</div>
+            <div id="system" style='font-family: ${RNW_SYSTEM_FONT}'>Text</div>
             <div id="reset" class="rnw-text-reset">Text</div>
             <div id="themed" class="rnw-text-reset uniwind-default-font">Text</div>
             <div id="utility" class="rnw-text-reset uniwind-default-font font-mono" style="--default-font-family: Georgia">Text</div>
@@ -38,9 +44,7 @@ test('font utilities still win over the default font', async ({ page }) => {
     expect(await fontOf(page, 'utility')).toMatch(/^ui-monospace,/)
 })
 
-test('without the token root text keeps the React Native Web reset font, not the browser default', async ({ page }) => {
-    const font = await fontOf(page, 'no-token')
-
-    expect(font).toMatch(/^-apple-system,/)
-    expect(font).not.toBe('Courier')
+test('without the token root text takes the React Native Web System stack, not the page font', async ({ page }) => {
+    expect(await fontOf(page, 'page')).toBe('serif')
+    expect(await fontOf(page, 'no-token')).toBe(await fontOf(page, 'system'))
 })
