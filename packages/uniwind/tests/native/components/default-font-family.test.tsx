@@ -5,6 +5,7 @@ import { StyleDependency } from '../../../src/common/consts'
 import Text from '../../../src/components/native/Text'
 import TextInput from '../../../src/components/native/TextInput'
 import { ScopedTheme } from '../../../src/components/ScopedTheme/ScopedTheme.native'
+import { ScopedVariables } from '../../../src/components/ScopedVariables/ScopedVariables.native'
 import { Uniwind } from '../../../src/core'
 import { UniwindListener } from '../../../src/core/listener'
 import { UniwindStore } from '../../../src/core/native'
@@ -94,6 +95,41 @@ describe('Default font family', () => {
 
             expect(getStylesFromId('text').fontFamily).toBeUndefined()
             expect(getStylesFromId('input').fontFamily).toBeUndefined()
+            unmount()
+        }
+    })
+
+    test('strips one pair of matching quotes from a family set at runtime', () => {
+        useDefaults('"Inter"', '  \'Inter Dark\'  ')
+
+        const { getStylesFromId } = renderUniwind(
+            <React.Fragment>
+                <Text testID="text">Hello</Text>
+                <TextInput testID="input" />
+                <ScopedVariables variables={{ '--default-font-family': '"O\'Reilly Sans"' }}>
+                    <Text testID="scoped">Hello</Text>
+                </ScopedVariables>
+            </React.Fragment>,
+        )
+
+        expect(getStylesFromId('text').fontFamily).toEqual('Inter')
+        expect(getStylesFromId('input').fontFamily).toEqual('Inter')
+        expect(getStylesFromId('scoped').fontFamily).toEqual('O\'Reilly Sans')
+
+        act(() => {
+            Uniwind.setTheme('dark')
+        })
+
+        expect(getStylesFromId('text').fontFamily).toEqual('Inter Dark')
+    })
+
+    test('keeps the platform default for quoted fallback lists and empty quotes', () => {
+        for (const value of ['"Inter", sans-serif', '\'Inter\', \'Roboto\'', '""', '\' \'']) {
+            useDefaults(value)
+
+            const { getStylesFromId, unmount } = renderUniwind(<Text testID="text">Hello</Text>)
+
+            expect(getStylesFromId('text').fontFamily).toBeUndefined()
             unmount()
         }
     })

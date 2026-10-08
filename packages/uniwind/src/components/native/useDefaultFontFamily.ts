@@ -30,12 +30,27 @@ const subscribeToThemeAndVariables = createSubscribe([StyleDependency.Theme, Sty
 const subscribeToVariables = createSubscribe([StyleDependency.Variables])
 const getNoStyle = () => undefined
 
+// CSS compiles to bare names, but a value set at runtime through
+// updateCSSVariables or ScopedVariables may keep its CSS quotes.
+const unquote = (value: string) => {
+    const quote = value[0]
+
+    return value.length > 1 && (quote === '"' || quote === '\'') && value.endsWith(quote)
+        ? value.slice(1, -1).trim()
+        : value
+}
+
 const getDefaultFontFamilyStyle = (uniwindContext: UniwindContextType) => {
-    const fontFamily = getVariableValue(DEFAULT_FONT_FAMILY, uniwindContext)
+    const value = getVariableValue(DEFAULT_FONT_FAMILY, uniwindContext)
+
+    if (typeof value !== 'string') {
+        return undefined
+    }
+
+    const fontFamily = unquote(value.trim())
 
     if (
-        typeof fontFamily !== 'string'
-        || fontFamily === ''
+        fontFamily === ''
         || fontFamily.includes(',')
         || cssWideKeywords.has(fontFamily.toLowerCase())
     ) {
@@ -55,10 +70,11 @@ const getDefaultFontFamilyStyle = (uniwindContext: UniwindContextType) => {
 /**
  * Native text inherits nothing from the root, so root text and inputs start
  * from the theme's --default-font-family, the font Tailwind's preflight gives
- * the web root. React Native resolves one family name, so a fallback list or a
- * CSS-wide keyword keeps the platform default. Nested text inherits from its
- * parent, while an input never inherits an enclosing Text's attributes, so it
- * starts from the default there too. className and style still override.
+ * the web root. React Native resolves one bare family name, so quotes are
+ * stripped, and a fallback list or a CSS-wide keyword keeps the platform
+ * default. Nested text inherits from its parent, while an input never inherits
+ * an enclosing Text's attributes, so it starts from the default there too.
+ * className and style still override.
  *
  * The snapshot is the cached style object, so an update that leaves the family
  * unchanged re-renders nothing.
