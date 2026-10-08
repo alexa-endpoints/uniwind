@@ -24,7 +24,7 @@ export const Text = copyComponentProperties(RNText, (props: TextProps) => {
     return (
         <RNText
             {...props}
-            style={[defaultFontFamily, style, props.style]}
+            style={defaultFontFamily === undefined ? [style, props.style] : [defaultFontFamily, style, props.style]}
             selectionColor={props.selectionColor ?? selectionColor}
             numberOfLines={(style as StyleWithWebkitLineClamp).WebkitLineClamp ?? props.numberOfLines}
             onPressIn={event => {
