@@ -125,10 +125,16 @@ const generateThemeVariablesCSS = (themesVariables: ThemesVariables) =>
 // would read a `?` or `#` in the entry's file name as a query or a fragment.
 const DISCOVERY_ENTRY = 'uniwind:discovery-entry'
 
-export const generateCSSForThemes = async (themes: Array<string>, input: string) => {
+// `artifactPath` is the artifact this build regenerates from the result.
+export const generateCSSForThemes = async (themes: Array<string>, input: string, artifactPath?: string) => {
     // css generation
     const themesVariables: ThemesVariables = Object.fromEntries(themes.map(theme => [theme, new Set<string>()]))
     const inputPath = path.resolve(input)
+    // The build compiles the entry against that artifact (under Metro, the project's own), and so does discovery once
+    // it exists. `@import "uniwind"` would otherwise resolve to the package's shared stylesheet, which may hold another
+    // project's artifact: every discovery compile of an entry that applies its own theme variables would then fail
+    // and retry.
+    const uniwindPath = artifactPath !== undefined && fs.existsSync(artifactPath) ? path.resolve(artifactPath) : undefined
     const cssPaths = new Set<string>()
     const scannedPaths = new Set<string>()
     const inputCSS = readFileSafe(inputPath)
@@ -149,10 +155,11 @@ export const generateCSSForThemes = async (themes: Array<string>, input: string)
 
     if (inputCSS !== null) {
         // Discovery compiles the entry to find the stylesheets Tailwind resolves. That compile also validates the
-        // entry, while `@import "uniwind"` resolves to the current artifact, a fresh install's or another project's,
-        // which may lack this build's theme variants (@variant) and theme variables (@apply, --theme()). So the
-        // entry is compiled with the theme declarations this function generates, from the variables found so far:
-        // the variants before it, so that the entry's own @custom-variant still wins, and the variables after it.
+        // entry, while `@import "uniwind"` resolves to the artifact this build last wrote or, before there is one, to the
+        // shared one, a fresh install's or another project's. Either may lack this build's theme variants (@variant)
+        // and theme variables (@apply, --theme()). So the entry is compiled with the theme declarations this function
+        // generates, from the variables found so far: the variants before it, so that the entry's own @custom-variant
+        // still wins, and the variables after it.
         // The entry is imported rather than inlined, so that its last statement, which may end at EOF without a
         // semicolon or inside an unclosed comment, ends with it. Tailwind resolves every @import before it
         // validates anything: when the compile fails after reaching stylesheets that declare theme variables, it
@@ -169,7 +176,7 @@ export const generateCSSForThemes = async (themes: Array<string>, input: string)
                 ].join('\n'),
                 {
                     base: path.dirname(inputPath),
-                    customCssResolver: id => Promise.resolve(id === DISCOVERY_ENTRY ? inputPath : undefined),
+                    customCssResolver: id => Promise.resolve(id === DISCOVERY_ENTRY ? inputPath : id === 'uniwind' ? uniwindPath : undefined),
                     // Tailwind resolves every @import before it loads the modules of @plugin and @config, and it also
                     // reports the files those modules load, or seem to: it traces their import and require strings,
                     // whatever the file type. So only the dependencies reported before a module resolves are stylesheets.
@@ -179,7 +186,7 @@ export const generateCSSForThemes = async (themes: Array<string>, input: string)
                         return Promise.resolve(undefined)
                     },
                     onDependency: dependency => {
-                        if (!isLoadingModules && !isExcludedDependency(dependency)) {
+                        if (!isLoadingModules && !isExcludedDependency(dependency) && dependency !== uniwindPath) {
                             cssPaths.add(dependency)
                         }
                     },

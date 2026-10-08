@@ -23,14 +23,14 @@ jest.mock('/virtual/expo-transform-worker.js', () => ({
     transform: (...args: Parameters<typeof mockWorkerTransform>) => mockWorkerTransform(...args),
 }), { virtual: true })
 
+jest.mock('../../../src/bundler/adapters/metro/artifact-paths', () => require('./temporaryArtifactPaths'))
+
 let directory = ''
-const artifactPaths = new Set<string>()
 
 // Stands in for artifact generation, which these tests don't exercise: the project's artifact is a
 // copy of the package stylesheet, followed by any extra CSS.
 const mockArtifacts = (extraCSS = '') =>
     jest.spyOn(UniwindBundlerConfig.prototype, 'generateArtifacts').mockImplementation(async artifactPath => {
-        artifactPaths.add(artifactPath)
         copyFileSync(path.resolve('uniwind.css'), artifactPath)
         writeFileSync(artifactPath, `${readFileSync(artifactPath, 'utf-8')}\n${extraCSS}`)
     })
@@ -43,8 +43,6 @@ beforeEach(() => {
 
 afterEach(() => {
     jest.restoreAllMocks()
-    artifactPaths.forEach(artifactPath => rmSync(artifactPath, { force: true }))
-    artifactPaths.clear()
     rmSync(directory, { force: true, recursive: true })
 })
 
