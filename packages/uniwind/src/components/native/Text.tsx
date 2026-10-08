@@ -18,7 +18,7 @@ export const Text = copyComponentProperties(RNText, (props: TextProps) => {
         isDisabled: Boolean(props.disabled),
     } satisfies ComponentState
     const style = useStyle(props.className, props, state)
-    const defaultFontFamily = useDefaultFontFamily()
+    const defaultFontFamily = useDefaultFontFamily('text')
     const selectionColor = useAccentColor(props.selectionColorClassName, props, state)
 
     return (

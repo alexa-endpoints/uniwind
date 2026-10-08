@@ -113,6 +113,28 @@ describe('Default font family', () => {
         expect(getStylesFromId('inner')?.fontFamily).toBeUndefined()
     })
 
+    test('starts inputs nested in text from the theme default, since inputs never inherit', () => {
+        useDefaults('Inter', 'Inter Dark')
+
+        const { getStylesFromId } = renderUniwind(
+            <Text className="font-[Georgia]" testID="outer">
+                Name:{' '}
+                <NestedText>
+                    <TextInput testID="input" />
+                </NestedText>
+            </Text>,
+        )
+
+        expect(getStylesFromId('outer').fontFamily).toEqual('Georgia')
+        expect(getStylesFromId('input').fontFamily).toEqual('Inter')
+
+        act(() => {
+            Uniwind.setTheme('dark')
+        })
+
+        expect(getStylesFromId('input').fontFamily).toEqual('Inter Dark')
+    })
+
     test('follows theme changes and scoped themes', () => {
         useDefaults('Inter', 'Inter Dark')
 
