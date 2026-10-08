@@ -242,6 +242,8 @@ Testing layout:
 
 Native test setup disables Node's optional `module.register` and `module.registerHooks` before importing Tailwind. Jest 30 cannot run these loader hooks in its module sandbox; Tailwind uses its normal module-loading path when the hooks are unavailable.
 
+From the sources, the Metro adapter's artifact paths (`artifact-paths.ts`: the package directory, which development builds never declare a stylesheet dependency in, the shared stylesheet, and the project artifacts) resolve inside `src/bundler`, which `files` publishes and the build copies into `dist`. Tests that run CSS transforms therefore mock that module with `tests/native/bundler/temporaryArtifactPaths.ts`, which gives each test file its own directory and removes it afterwards.
+
 The bare example's React Native CLI uses Metro 0.84 internally. The Metro development dependency follows the root `metro` catalog entry, which matches the version `@expo/metro` pins (0.84.5), so the hoisted `metro` and `metro-resolver` are the copies Expo loads. It stays below 0.86 until that CLI is upgraded: Metro 0.86/0.87 transformer workers emit full source maps that the older CLI serializer cannot consume. Metro dependency upgrades must pass the bare production bundle checks.
 
 Source-of-truth policy: repository code and tests win for implementation details. External docs at `docs.uniwind.dev` describe intended public behavior and should be updated when public behavior changes.

@@ -9,22 +9,20 @@ import type * as MetroTransformWorker from 'metro-transform-worker'
 import type { JsTransformerConfig, JsTransformOptions } from 'metro-transform-worker'
 import { createHash } from 'node:crypto'
 import path from 'path'
+import { packageDirectory, projectArtifactsDirectory, sharedArtifactPath } from './artifact-paths'
 import {
     getRawComponentNames,
     TRANSFORM_COMPONENTS,
     UPSTREAM_BABEL_TRANSFORMER,
 } from './constants'
 
-export const cssArtifactPath = path.resolve(__dirname, '../../uniwind.css')
-
 // Projects with different themes, such as a federation host and its remotes, can build at the
 // same time from one installed package. Each compiles against its own artifact rather than the
 // shared stylesheet another build may be rewriting, and configs that generate different content
 // for one entry get different artifacts.
 export const projectArtifactPath = (bundlerConfig: Pick<UniwindBundlerConfig, 'artifactKey'>) =>
-    path.resolve(
-        __dirname,
-        '../../.artifacts',
+    path.join(
+        projectArtifactsDirectory,
         `${createHash('sha256').update(bundlerConfig.artifactKey).digest('hex').slice(0, 16)}.css`,
     )
 
@@ -37,7 +35,7 @@ export const projectArtifactPath = (bundlerConfig: Pick<UniwindBundlerConfig, 'a
 const isWatchedStylesheet = (stylesheet: string) =>
     stylesheet.endsWith('.css')
     && !stylesheet.includes(`${path.sep}node_modules${path.sep}`)
-    && !stylesheet.startsWith(`${path.dirname(cssArtifactPath)}${path.sep}`)
+    && !stylesheet.startsWith(`${packageDirectory}${path.sep}`)
 
 // Cache workers separately for Expo (`true`) and plain Metro (`false`) configs.
 const workerCache = new Map<boolean, typeof MetroTransformWorker>()
@@ -169,7 +167,7 @@ export const transform = async (
     fs.mkdirSync(path.dirname(artifactPath), { recursive: true })
     await baseBundlerConfig.generateArtifacts(artifactPath)
     // Tools that import the package stylesheet directly still see a generated one.
-    writeFileAtomicSync(cssArtifactPath, fs.readFileSync(artifactPath, 'utf-8'))
+    writeFileAtomicSync(sharedArtifactPath, fs.readFileSync(artifactPath, 'utf-8'))
 
     const bundlerConfig = inlinedRemote === undefined
         ? baseBundlerConfig
