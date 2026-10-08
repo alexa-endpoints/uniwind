@@ -1,5 +1,6 @@
-import { readFileSync } from 'fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { transform } from 'lightningcss'
+import path from 'path'
 import { UniwindBundlerConfig } from '../../../src/bundler/config'
 import { compileCSS } from '../../../src/bundler/css-compiler'
 import { Platform } from '../../../src/common/consts'
@@ -66,5 +67,45 @@ describe('Default font CSS', () => {
         expect(code.match(/"uniwind-default-font"/g)).toBeNull()
         // Native Text and TextInput read the token itself.
         expect(code.match(/"--default-font-family": vars =>/g)).toHaveLength(1)
+    })
+
+    test('leaves the rule to the host in federated remote web CSS', async () => {
+        const directory = mkdtempSync(path.join(process.cwd(), '.tmp-default-font-remote-'))
+        const remoteCSSPath = path.join(directory, 'remote.css')
+
+        writeFileSync(
+            remoteCSSPath,
+            [
+                '@layer theme, base, components, utilities;',
+                '@import "tailwindcss/theme.css" layer(theme) prefix(rmt);',
+                '@import "tailwindcss/utilities.css" layer(utilities) prefix(rmt);',
+                '@import "uniwind";',
+                '@source inline("rmt:bg-red-500");',
+            ].join('\n'),
+        )
+
+        try {
+            const host = await compileCSS(
+                UniwindBundlerConfig.fromMetroConfig(
+                    { cssEntryFile: './tests/test.css', experimental: { federation: { role: 'host' } } },
+                    Platform.Web,
+                ),
+            )
+            const remote = await compileCSS(
+                UniwindBundlerConfig.fromMetroConfig(
+                    {
+                        cssEntryFile: path.relative(process.cwd(), remoteCSSPath),
+                        experimental: { federation: { role: 'remote', id: 'remote-a' } },
+                    },
+                    Platform.Web,
+                ),
+            )
+
+            expect(enclosingRules(host)).toEqual([['@layer base', '@supports selector(div > div)']])
+            expect(enclosingRules(remote)).toEqual([])
+            expect(remote).toContain('.rmt\\:bg-red-500')
+        } finally {
+            rmSync(directory, { force: true, recursive: true })
+        }
     })
 })
