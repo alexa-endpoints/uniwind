@@ -31,8 +31,11 @@ export type NativeComponentName = typeof NATIVE_COMPONENT_NAMES[number]
 
 export const NATIVE_COMPONENT_NAME_SET = new Set<string>(NATIVE_COMPONENT_NAMES)
 
-// React Native warns when its deprecated SafeAreaView export is read, and Fast Refresh reads every
-// export of the raw-component module, so classless SafeAreaView always keeps the Uniwind wrapper.
+// React Native warns when its deprecated SafeAreaView export is read, and every export of the
+// raw-component module gets read: by Fast Refresh in development, and whenever the module is evaluated,
+// production included, under Metro's non-live import/export transform (`experimentalImportSupport`
+// without live bindings), which copies each re-export into a variable. So classless SafeAreaView
+// always keeps the Uniwind wrapper.
 type WrapperOnlyComponentName = 'SafeAreaView'
 
 export const RAW_COMPONENT_NAMES = NATIVE_COMPONENT_NAMES.filter(
