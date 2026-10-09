@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import path from 'path'
 import { buildCSS } from '../../../src/bundler/artifacts/css'
 import { generateCSSForThemes } from '../../../src/bundler/artifacts/css/themes'
+import { Logger } from '../../../src/bundler/logger'
 
 const THEMES = ['light', 'dark', 'premium']
 
@@ -314,5 +315,29 @@ describe('Theme artifact generation', () => {
         writeEntry(...lines)
 
         await expect(generateCSSForThemes(THEMES, entryPath)).rejects.toThrow(/Cannot apply unknown utility class `bg-missing`/)
+    })
+
+    // The retry declares the first theme's variables, so applying one that only another theme declares still fails.
+    test('reports the variables a theme is missing when the entry applies one of them', async () => {
+        const error = jest.spyOn(Logger, 'error').mockImplementation(() => {})
+
+        try {
+            await writeArtifact(['light', 'dark'])
+            writeEntry(
+                '',
+                themeBlock('--color-background'),
+                '@layer theme { :root { @variant dark { --color-shadow: black; } } }',
+                '.card { @apply bg-shadow; }',
+            )
+
+            await expect(generateCSSForThemes(THEMES, entryPath)).rejects.toThrow(/Cannot apply unknown utility class `bg-shadow`/)
+            expect(error.mock.calls.map(([message]) => message)).toEqual([
+                'Theme light is missing variable --color-shadow',
+                'Theme premium is missing variable --color-shadow',
+                'All themes must have the same variables',
+            ])
+        } finally {
+            error.mockRestore()
+        }
     })
 })

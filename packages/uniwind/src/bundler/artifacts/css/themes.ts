@@ -34,6 +34,25 @@ const removeImportsForAnalysis = (css: string) =>
 
 const hasThemesVariables = (themesVariables: ThemesVariables) => Object.values(themesVariables).some(variables => variables.size > 0)
 
+const reportMissingThemesVariables = (themesVariables: ThemesVariables) => {
+    let hasErrors = false as boolean
+
+    Object.values(themesVariables).forEach(variables => {
+        Object.entries(themesVariables).forEach(([checkedTheme, checkedVariables]) => {
+            variables.forEach(variable => {
+                if (!checkedVariables.has(variable)) {
+                    Logger.error(`Theme ${checkedTheme} is missing variable ${variable}`)
+                    hasErrors = true
+                }
+            })
+        })
+    })
+
+    if (hasErrors) {
+        Logger.error('All themes must have the same variables')
+    }
+}
+
 const findThemesVariables = (themes: Array<string>, css: string, themesVariables: ThemesVariables) => {
     transform({
         // Tailwind owns import resolution, including prefix(...). Lightning
@@ -180,29 +199,18 @@ export const generateCSSForThemes = async (themes: Array<string>, input: string)
                 throw error
             }
 
-            await discoverCSSPaths()
+            await discoverCSSPaths().catch((retryError: unknown) => {
+                // The retry declares the first theme's variables, so an entry that applies a variable only another
+                // theme declares fails it too: report what the themes are missing, as the build always has.
+                reportMissingThemesVariables(themesVariables)
+
+                throw retryError
+            })
         })
     }
 
     scanCSSPaths()
-
-    // Check if all themes have the same variables
-    let hasErrors = false as boolean
-
-    Object.values(themesVariables).forEach(variables => {
-        Object.entries(themesVariables).forEach(([checkedTheme, checkedVariables]) => {
-            variables.forEach(variable => {
-                if (!checkedVariables.has(variable)) {
-                    Logger.error(`Theme ${checkedTheme} is missing variable ${variable}`)
-                    hasErrors = true
-                }
-            })
-        })
-    })
-
-    if (hasErrors) {
-        Logger.error('All themes must have the same variables')
-    }
+    reportMissingThemesVariables(themesVariables)
 
     return [...generateThemeVariantsCSS(themes), ...generateThemeVariablesCSS(themesVariables)].join('\n')
 }
