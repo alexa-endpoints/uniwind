@@ -58,11 +58,13 @@ export const getCacheKey = (
 
 // A file can only reference an enabled component by its name, so files that never mention one skip the
 // Babel dispatch. Substring matches only cost a dispatch; the Babel transform still matches exact names.
+// The list comes first: the default config enables no component, and then no file is read at all.
 export const shouldTransformClasslessComponents = (
     config: Pick<UniwindMetroConfig, 'optimizedClasslessComponents'>,
     data: Buffer,
     options: Pick<JsTransformOptions, 'platform' | 'type'>,
-) => options.type !== 'asset'
+) => (config.optimizedClasslessComponents?.length ?? 0) > 0
+    && options.type !== 'asset'
     && options.platform !== Platform.Web
     && data.includes('react-native')
     && config.optimizedClasslessComponents?.some(component => data.includes(component)) === true
