@@ -6,7 +6,8 @@ type Polyfills = {
 
 /**
  * Built-in React Native components whose classless usages `optimizeClasslessComponents` can compile
- * to the raw React Native component.
+ * to the raw React Native component. The deprecated `SafeAreaView` is not one of them: it always keeps
+ * its wrapper.
  */
 export type ClasslessComponentName =
     | 'ActivityIndicator'
@@ -19,7 +20,6 @@ export type ClasslessComponentName =
     | 'Modal'
     | 'Pressable'
     | 'RefreshControl'
-    | 'SafeAreaView'
     | 'ScrollView'
     | 'SectionList'
     | 'Switch'
@@ -53,7 +53,8 @@ export type ClasslessComponentPredicate = (
 
 type ExperimentalOptions = {
     /**
-     * Rewrites statically classless React Native elements to raw components.
+     * Rewrites statically classless React Native elements to raw components. The deprecated
+     * `SafeAreaView` always keeps its wrapper.
      *
      * - `true` optimizes the default set: every component the predicate's `isDefault` holds for.
      * - A function is called synchronously once per component in `ClasslessComponentName` when

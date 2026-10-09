@@ -13,7 +13,6 @@ type ExpectedClasslessComponentName =
     | 'Modal'
     | 'Pressable'
     | 'RefreshControl'
-    | 'SafeAreaView'
     | 'ScrollView'
     | 'SectionList'
     | 'Switch'
@@ -90,5 +89,13 @@ withUniwindConfig(config, {
     experimental: {
         // @ts-expect-error The predicate must return a boolean
         optimizeClasslessComponents: component => component === 'View' ? 'raw' : undefined,
+    },
+})
+
+withUniwindConfig(config, {
+    cssEntryFile: './global.css',
+    experimental: {
+        // @ts-expect-error SafeAreaView always keeps its wrapper, so predicates are never asked about it
+        optimizeClasslessComponents: component => component === 'SafeAreaView',
     },
 })

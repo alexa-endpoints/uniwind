@@ -38,7 +38,12 @@ export const NATIVE_COMPONENT_NAME_SET = new Set<string>(NATIVE_COMPONENT_NAMES)
 // in `NATIVE_COMPONENT_NAMES` above: that array is also the resolver's complete wrapper set
 // (`SUPPORTED_COMPONENTS` in resolvers.ts), so dropping a name from it would strip the wrapper from
 // `uniwind/components` deep imports too, including RN's own `Animated.<Name>`.
-export const CLASSLESS_COMPONENT_EXCLUSIONS = [] as const satisfies ReadonlyArray<NativeComponentName>
+// - SafeAreaView: React Native warns when its deprecated export is read, and every export of the
+//   raw-component module gets read: by Fast Refresh in development, and whenever the module is
+//   evaluated, production included, under Metro's non-live import/export transform
+//   (`experimentalImportSupport` without live bindings), which copies each re-export into a variable.
+//   Enabled, it would warn on every start, even where no classless SafeAreaView renders.
+export const CLASSLESS_COMPONENT_EXCLUSIONS = ['SafeAreaView'] as const satisfies ReadonlyArray<NativeComponentName>
 
 const CLASSLESS_COMPONENT_EXCLUSION_SET = new Set<string>(CLASSLESS_COMPONENT_EXCLUSIONS)
 

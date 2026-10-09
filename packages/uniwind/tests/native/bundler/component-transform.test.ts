@@ -1,6 +1,7 @@
 import { transformSync, traverse } from '@babel/core'
 import { componentTransform } from '../../../src/bundler/adapters/metro/component-transform'
 import {
+    CLASSLESS_COMPONENT_EXCLUSIONS,
     CLASSLESS_COMPONENT_NAMES,
     type ClasslessComponentName,
     RAW_COMPONENTS_MODULE,
@@ -32,7 +33,6 @@ const CLASS_PROPS_BY_COMPONENT = {
         'titleColorClassName',
         'progressBackgroundColorClassName',
     ],
-    SafeAreaView: ['className'],
     ScrollView: ['className', 'contentContainerClassName', 'endFillColorClassName'],
     SectionList: [
         'className',
@@ -319,6 +319,39 @@ test('does not rewrite unsupported React Native exports', () => {
 
     expect(code).not.toContain(RAW_COMPONENTS_MODULE)
     expect(code).toContain('<StatusBar />')
+})
+
+describe.each(CLASSLESS_COMPONENT_EXCLUSIONS)('excluded %s', componentName => {
+    test('keeps statically classless JSX on the Uniwind wrapper path', () => {
+        const code = transform(`
+            import { ${componentName} } from 'react-native'
+
+            export const Component = () => <${componentName} testID="component" />
+        `)
+
+        expect(code).not.toContain(RAW_COMPONENTS_MODULE)
+        expect(code).toContain(`<${componentName} testID="component" />`)
+    })
+
+    test('is neither eligible nor exported by the private raw-component module', () => {
+        expect(CLASSLESS_COMPONENT_NAMES).not.toContain(componentName)
+        expect(rawComponents).not.toHaveProperty(componentName)
+    })
+
+    // Even a list that names it cannot send it down the raw path.
+    test('keeps the Uniwind wrapper when a component list names it', () => {
+        const code = transform(
+            `
+            import { ${componentName} } from 'react-native'
+
+            export const Component = () => <${componentName} />
+        `,
+            [componentName],
+        )
+
+        expect(code).not.toContain(RAW_COMPONENTS_MODULE)
+        expect(code).toContain(`<${componentName} />`)
+    })
 })
 
 describe('with a partial component list', () => {
