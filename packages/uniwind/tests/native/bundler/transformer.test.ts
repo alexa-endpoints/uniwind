@@ -149,6 +149,18 @@ describe('transform', () => {
         expect(config.babelTransformerPath).toBe(UPSTREAM_BABEL_TRANSFORMER_PATH)
         expect(options).toBe(transformOptions)
     })
+
+    test('never serves an excluded component from the raw-component module', async () => {
+        await transform(
+            createConfig(['SafeAreaView', 'View'] as Array<ClasslessComponentName>),
+            PROJECT_ROOT,
+            path.relative(PROJECT_ROOT, RAW_COMPONENTS_PATH),
+            readFileSync(RAW_COMPONENTS_PATH),
+            transformOptions,
+        )
+
+        expect(getWorkerCall().data.toString()).toBe(`export { View } from 'react-native'\n`)
+    })
 })
 
 describe('Babel transformer', () => {

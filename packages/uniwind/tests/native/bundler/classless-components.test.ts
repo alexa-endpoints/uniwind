@@ -50,6 +50,13 @@ describe('component sets', () => {
         )
     })
 
+    // React Native warns when its deprecated SafeAreaView export is read, and every export of the
+    // raw-component module gets read.
+    test('excludes the deprecated SafeAreaView', () => {
+        expect([...CLASSLESS_COMPONENT_EXCLUSIONS]).toEqual(['SafeAreaView'])
+        expect(NATIVE_COMPONENT_NAMES).toContain('SafeAreaView')
+    })
+
     test('derives the default set from the eligible components minus the non-default ones', () => {
         expect([...DEFAULT_CLASSLESS_COMPONENT_NAMES]).toEqual(
             CLASSLESS_COMPONENT_NAMES.filter(component => !nonDefaults.has(component)),
@@ -114,7 +121,10 @@ describe('resolveClasslessComponents', () => {
     })
 
     test('never enables an excluded component', () => {
-        expect(resolveClasslessComponents(() => true).filter(component => exclusions.has(component))).toEqual([])
+        const predicate = jest.fn((_component: ClasslessComponentName) => true)
+
+        expect(resolveClasslessComponents(predicate).filter(component => exclusions.has(component))).toEqual([])
+        expect(predicate.mock.calls.map(([component]) => component).filter(component => exclusions.has(component))).toEqual([])
     })
 
     test('enables nothing when the predicate rejects every component', () => {
