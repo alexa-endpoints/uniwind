@@ -97,6 +97,40 @@ describe('Theme artifact generation', () => {
         expect(css).toContain(themeVariable('--color-imported'))
     })
 
+    test('skips the JavaScript modules of local plugins and configs', async () => {
+        await writeArtifact(['light', 'dark'])
+        writeFileSync(path.join(directory, 'colors.js'), 'module.exports = { brand: \'#ff0000\' }\n')
+        writeFileSync(
+            path.join(directory, 'tailwind.config.js'),
+            'module.exports = { theme: { extend: { colors: require(\'./colors.js\') } } }\n',
+        )
+        writeFileSync(
+            path.join(directory, 'plugin.js'),
+            'module.exports = ({ addUtilities }) => addUtilities({ \'.brand\': { color: \'red\' } })\n',
+        )
+        writeEntry('@config "./tailwind.config.js";', '@plugin "./plugin.js";', themeBlock('--color-background'))
+
+        const css = await generateCSSForThemes(THEMES, entryPath)
+
+        expect(css).toContain(themeVariable('--color-background'))
+    })
+
+    // Tailwind also reports the files it finds in a local module's import and require strings, whatever their type.
+    // Its import pattern ignores case and word boundaries, so a v3 config's `important: true` reads as an import.
+    test('skips the other files that local plugins and configs appear to load', async () => {
+        await writeArtifact(['light', 'dark'])
+        writeFileSync(path.join(directory, 'index.html'), '<!doctype html>\n<div id="root"></div>\n')
+        writeFileSync(
+            path.join(directory, 'tailwind.config.js'),
+            'module.exports = { important: true, content: [\'./index.html\'] }\n',
+        )
+        writeEntry('@config "./tailwind.config.js";', themeBlock('--color-background'))
+
+        const css = await generateCSSForThemes(THEMES, entryPath)
+
+        expect(css).toContain(themeVariable('--color-background'))
+    })
+
     test('ignores the themes of another project that last wrote the shared artifact', async () => {
         await writeArtifact(['light', 'dark', 'ocean'])
         writeEntry('', themeBlock('--color-background'))
