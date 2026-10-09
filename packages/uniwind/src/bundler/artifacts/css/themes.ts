@@ -21,7 +21,16 @@ const isExcludedDependency = (url: string) =>
         url.includes('node_modules/uniwind'),
     ].some(Boolean)
 
-const removeImportsForAnalysis = (css: string) => css.replace(/@import(?:[^;"']+|"[^"]*"|'[^']*')+;/g, '')
+// An @import ends at its semicolon or, as the last statement, at EOF; it never runs into a block. Comments and strings
+// are matched whole, so an @import inside one stays, and so do the quotes and semicolons inside them. Every part
+// matches one way only, so text that turns out not to be an import is rejected in linear time.
+const COMMENT = String.raw`/\*(?:[^*]|\*(?!/))*(?:\*/|$)`
+const STRING = String.raw`"(?:[^"\\]|\\[\s\S])*"|'(?:[^'\\]|\\[\s\S])*'`
+const IMPORT = String.raw`@import(?:[^;"'{/]|/(?!\*)|${COMMENT}|${STRING})*(?:;|$)`
+const IMPORTS_FOR_ANALYSIS = new RegExp(`${COMMENT}|${STRING}|(${IMPORT})`, 'g')
+
+const removeImportsForAnalysis = (css: string) =>
+    css.replace(IMPORTS_FOR_ANALYSIS, (match, importRule?: string) => importRule === undefined ? match : '')
 
 const hasThemesVariables = (themesVariables: ThemesVariables) => Object.values(themesVariables).some(variables => variables.size > 0)
 
