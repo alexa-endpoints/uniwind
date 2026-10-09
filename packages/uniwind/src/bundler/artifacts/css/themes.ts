@@ -34,6 +34,21 @@ const removeImportsForAnalysis = (css: string) =>
 
 const hasThemesVariables = (themesVariables: ThemesVariables) => Object.values(themesVariables).some(variables => variables.size > 0)
 
+// The errors Tailwind's own validation raises for a theme variable the first theme lacks, since the generated artifact
+// declares only the first theme's variables. Tailwind builds utilities and variants, such as breakpoints and container
+// sizes, from theme variables, so one built on it is unknown to @apply and @variant, and theme(), --theme() and
+// --spacing() can't read it. A @plugin or @config module that fails on such a value throws an error of its own, which
+// this list doesn't recognize.
+const THEME_VARIABLE_ERRORS = [
+    /^Cannot apply unknown utility class/,
+    /^Cannot apply utility class `.*` because the `.*` (?:variant does|variants do) not exist/,
+    /^Cannot use `@variant` with (?:unknown )?variant: /,
+    /^Could not resolve value for theme function/,
+    /^The --spacing\(…\) function requires that the `--spacing` theme variable exists/,
+]
+
+const isThemeVariableError = (error: unknown) => error instanceof Error && THEME_VARIABLE_ERRORS.some(pattern => pattern.test(error.message))
+
 const reportMissingThemesVariables = (themesVariables: ThemesVariables) => {
     let hasErrors = false as boolean
 
@@ -200,9 +215,14 @@ export const generateCSSForThemes = async (themes: Array<string>, input: string)
             }
 
             await discoverCSSPaths().catch((retryError: unknown) => {
-                // The retry declares the first theme's variables, so an entry that applies a variable only another
-                // theme declares fails it too: report what the themes are missing, as the build always has.
-                reportMissingThemesVariables(themesVariables)
+                // The retry declares the first theme's variables, so an entry that uses a variable only another theme
+                // declares fails it too: when Tailwind's validation says so, report what the themes are missing, as the
+                // build always has. Tailwind validates only after it has read every stylesheet, so the scan has seen
+                // them all. A stylesheet it can't parse or an @import it can't resolve stops it before the stylesheets
+                // past it, whose variables would only seem to be missing.
+                if (isThemeVariableError(retryError)) {
+                    reportMissingThemesVariables(themesVariables)
+                }
 
                 throw retryError
             })

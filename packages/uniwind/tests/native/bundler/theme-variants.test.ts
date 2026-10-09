@@ -5,15 +5,15 @@ import { generateCSSForThemes } from '../../../src/bundler/artifacts/css/themes'
 import { Logger } from '../../../src/bundler/logger'
 
 const THEMES = ['light', 'dark', 'premium']
+const THEME_VALUES: Record<string, string> = { light: 'white', dark: 'black', premium: 'gold' }
+const THEME_SIZES: Record<string, string> = { light: '40rem', dark: '48rem', premium: '64rem' }
 
 // Same shape as the example apps' entries: one variable per configured theme variant.
-const themeBlock = (variable: string) =>
+const themeBlock = (variable: string, themes = THEMES, values = THEME_VALUES) =>
     [
         '@layer theme {',
         '    :root {',
-        `        @variant light { ${variable}: white; }`,
-        `        @variant dark { ${variable}: black; }`,
-        `        @variant premium { ${variable}: gold; }`,
+        ...themes.map(theme => `        @variant ${theme} { ${variable}: ${values[theme]}; }`),
         '    }',
         '}',
     ].join('\n')
@@ -216,13 +216,49 @@ describe('Theme artifact generation', () => {
         expect(css).toContain(['@theme {', '    --color-background: unset;', '    --color-more: unset;', '}'].join('\n'))
     })
 
+    // Read as an import, the comment's mention would run to the next statement's semicolon and leave the comment open
+    // over the theme variables.
     test('finds the theme variables after a comment that mentions an import', async () => {
         await writeArtifact(['light', 'dark'])
-        writeEntry('/* The @import "./fonts.css" of older entries moved to the app */', themeBlock('--color-background'))
+        writeEntry(
+            '/* The @import "./fonts.css" of older entries moved to the app */',
+            '@layer base, components;',
+            themeBlock('--color-background'),
+        )
 
         const css = await generateCSSForThemes(THEMES, entryPath)
 
         expect(css).toContain(themeVariable('--color-background'))
+    })
+
+    // A quoted `/*` read as the start of a comment, or an escaped quote read as the end of its string, would hide the
+    // import after the value, and the scan would then fail on it as an import after a rule. Each quote style has its
+    // own case, with a single escaped quote: if one ended the string early, a second would start it again, and it
+    // would end where it should.
+    test.each([
+        ['a comment opener', '@source "./components/*.tsx";', '@import "./more.css";'],
+        ['an escaped single quote', '.generated::before { content: \'/* Don\\\'t edit */\'; }', '@import \'./more.css\';'],
+        ['an escaped double quote', '.generated::before { content: "/* A 12\\" screen */"; }', '@import "./more.css";'],
+    ])('accepts an import after a quoted value with %s', async (_, statement, importStatement) => {
+        await writeArtifact(['light', 'dark'])
+        writeFileSync(path.join(directory, 'more.css'), themeBlock('--color-more'))
+        writeEntry(statement, themeBlock('--color-background'), importStatement)
+
+        const css = await generateCSSForThemes(THEMES, entryPath)
+
+        expect(css).toContain(['@theme {', '    --color-background: unset;', '    --color-more: unset;', '}'].join('\n'))
+    })
+
+    // Tailwind also resolves an import nested in a block, whose end stands in for the import's semicolon. Read on past
+    // that end, the import would run into the next block, up to the first semicolon inside it.
+    test('finds the theme variables after a block that ends with an import without a semicolon', async () => {
+        await writeArtifact(['light', 'dark'])
+        writeFileSync(path.join(directory, 'nested.css'), themeBlock('--color-nested'))
+        writeEntry('@layer base {', '    @import "./nested.css"', '}', themeBlock('--color-background'))
+
+        const css = await generateCSSForThemes(THEMES, entryPath)
+
+        expect(css).toContain(['@theme {', '    --color-background: unset;', '    --color-nested: unset;', '}'].join('\n'))
     })
 
     // A comment still open at EOF ends with the stylesheet. The theme declarations must not become part of it.
@@ -297,6 +333,32 @@ describe('Theme artifact generation', () => {
         await expect(generateCSSForThemes(THEMES, entryPath)).rejects.toThrow(/resolve '@\/fonts\.css'/)
     })
 
+    // Tailwind stops at a stylesheet it can't parse or an import it can't resolve, so discovery never reaches the
+    // stylesheets past it, which may declare what the themes would seem to be missing.
+    test.each([
+        ['an import it cannot resolve', {}, '@import "@/premium.css";', /resolve '@\/premium\.css'/],
+        [
+            'a nested stylesheet it cannot parse',
+            { 'broken.css': ['@import "./premium.css";', '.card { color: red;'].join('\n') },
+            '@import "./broken.css";',
+            /Missing closing } at \.card/,
+        ],
+    ])('reports %s without calling the theme variables behind it missing', async (_, files, statement, message) => {
+        const error = jest.spyOn(Logger, 'error').mockImplementation(() => {})
+
+        try {
+            await writeArtifact(['light', 'dark'])
+            writeFileSync(path.join(directory, 'premium.css'), themeBlock('--color-background', ['premium']))
+            Object.entries(files).forEach(([name, css]) => writeFileSync(path.join(directory, name), css))
+            writeEntry(statement, themeBlock('--color-background', ['light', 'dark']))
+
+            await expect(generateCSSForThemes(THEMES, entryPath)).rejects.toThrow(message)
+            expect(error).not.toHaveBeenCalled()
+        } finally {
+            error.mockRestore()
+        }
+    })
+
     // Lightning CSS can't scan every stylesheet Tailwind accepts, such as one using theme() in a media query.
     test('reports an import it cannot resolve next to a stylesheet it cannot scan', async () => {
         await writeArtifact(['light', 'dark'])
@@ -334,6 +396,75 @@ describe('Theme artifact generation', () => {
             expect(error.mock.calls.map(([message]) => message)).toEqual([
                 'Theme light is missing variable --color-shadow',
                 'Theme premium is missing variable --color-shadow',
+                'All themes must have the same variables',
+            ])
+        } finally {
+            error.mockRestore()
+        }
+    })
+
+    // So does any other use of one: Tailwind builds variants such as breakpoints and container sizes from them, and
+    // theme functions read them.
+    test.each([
+        [
+            'applies a breakpoint variant built on one',
+            [themeBlock('--breakpoint-tablet', ['dark'], THEME_SIZES)],
+            '.card { @apply tablet:flex; }',
+            /Cannot apply utility class `tablet:flex` because the `tablet` variant does not exist/,
+            ['--breakpoint-tablet'],
+        ],
+        [
+            'applies breakpoint and container variants built on them',
+            [themeBlock('--breakpoint-tablet', ['dark'], THEME_SIZES), themeBlock('--container-tablet', ['dark'], THEME_SIZES)],
+            '.card { @apply tablet:@tablet:flex; }',
+            /because the `tablet` and `@tablet` variants do not exist/,
+            ['--breakpoint-tablet', '--container-tablet'],
+        ],
+        [
+            'nests a rule in a breakpoint variant built on one',
+            [themeBlock('--breakpoint-tablet', ['dark'], THEME_SIZES)],
+            '.card { @variant tablet { display: flex; } }',
+            /Cannot use `@variant` with unknown variant: tablet/,
+            ['--breakpoint-tablet'],
+        ],
+        [
+            'nests a rule in a variant that reads one',
+            [themeBlock('--breakpoint-tablet', ['dark'], THEME_SIZES)],
+            '.card { @variant max-tablet { display: flex; } }',
+            /Cannot use `@variant` with variant: max-tablet/,
+            ['--breakpoint-tablet'],
+        ],
+        [
+            'reads one with --theme()',
+            [themeBlock('--color-shadow', ['dark'])],
+            '.card { color: --theme(--color-shadow); }',
+            /Could not resolve value for theme function/,
+            ['--color-shadow'],
+        ],
+        [
+            'reads one with theme()',
+            [themeBlock('--color-shadow', ['dark'])],
+            '.card { color: theme(--color-shadow); }',
+            /Could not resolve value for theme function/,
+            ['--color-shadow'],
+        ],
+        [
+            'reads one with --spacing()',
+            ['@theme { --spacing: initial; }', themeBlock('--spacing', ['dark'], THEME_SIZES)],
+            '.card { padding: --spacing(4); }',
+            /The --spacing\(…\) function requires that the `--spacing` theme variable exists/,
+            ['--spacing'],
+        ],
+    ])('reports the variables a theme is missing when the entry %s', async (_, lines, rule, thrown, variables) => {
+        const error = jest.spyOn(Logger, 'error').mockImplementation(() => {})
+
+        try {
+            await writeArtifact(['light', 'dark'])
+            writeEntry('', themeBlock('--color-background'), ...lines, rule)
+
+            await expect(generateCSSForThemes(THEMES, entryPath)).rejects.toThrow(thrown)
+            expect(error.mock.calls.map(([message]) => message)).toEqual([
+                ...['light', 'premium'].flatMap(theme => variables.map(variable => `Theme ${theme} is missing variable ${variable}`)),
                 'All themes must have the same variables',
             ])
         } finally {
