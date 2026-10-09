@@ -122,7 +122,7 @@ Compilation flow:
 
 Metro integration:
 
-- `withUniwindConfig(config, uniwindConfig)` patches Metro graph support for uncached modules.
+- `withUniwindConfig(config, uniwindConfig)` patches Metro graph support for uncached modules. The patches apply to the Metro this package resolves and to every Metro graph module already loaded, because the CLI running the server can bring its own Metro copy (React Native CLI's community plugin and `@expo/metro` do) and loads it before the config.
 - Metro adds `css` as source extension and removes it from asset extensions.
 - Metro transformer handles the configured CSS entry file specially. In development, native entries declare imported local CSS files as Metro dependencies, including nested imports and workspace files resolved outside `node_modules`, so token-only edits trigger recompilation. The generated `uniwind.css` is never one of them: the transform rewrites it, and the projects of a workspace share one copy, so concurrently running Metro servers that watched it would keep rebuilding each other. Dependencies are collected afresh on each compile.
 - Non-entry native CSS is an empty module in plain Metro; Expo keeps its own CSS handling. Web CSS handling is unchanged.
