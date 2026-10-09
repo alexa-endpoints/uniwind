@@ -188,6 +188,42 @@ describe('Theme artifact generation', () => {
         await expect(generateCSSForThemes(THEMES, entryPath)).resolves.toBe(expected)
     })
 
+    // An import after a rule must be the stylesheet's last statement, which needs no semicolon either.
+    test.each([
+        ['a string', '@import "./more.css"', ['--color-background', '--color-more']],
+        // Tailwind leaves an import of a url to the browser.
+        ['a url', '@import url(./more.css)', ['--color-background']],
+    ])('accepts an entry ending, after a rule, with an import of %s that has no semicolon', async (_, statement, variables) => {
+        await writeArtifact(['light', 'dark'])
+        writeFileSync(path.join(directory, 'more.css'), themeBlock('--color-more'))
+        writeEntry('', themeBlock('--color-background'), statement)
+
+        const css = await generateCSSForThemes(THEMES, entryPath)
+
+        expect(css).toContain(['@theme {', ...variables.map(variable => `    ${variable}: unset;`), '}'].join('\n'))
+    })
+
+    // Up to the apostrophe, the comment reads like more of the import. Finding that it isn't one must not take
+    // longer the longer the comment is.
+    test('accepts an entry ending with an import that has no semicolon and a comment with an apostrophe', async () => {
+        await writeArtifact(['light', 'dark'])
+        writeEntry('', themeBlock('--color-background'), '@import "./more.css"', '/* Left open on purpose, so don\'t close it */')
+        writeFileSync(path.join(directory, 'more.css'), themeBlock('--color-more'))
+
+        const css = await generateCSSForThemes(THEMES, entryPath)
+
+        expect(css).toContain(['@theme {', '    --color-background: unset;', '    --color-more: unset;', '}'].join('\n'))
+    })
+
+    test('finds the theme variables after a comment that mentions an import', async () => {
+        await writeArtifact(['light', 'dark'])
+        writeEntry('/* The @import "./fonts.css" of older entries moved to the app */', themeBlock('--color-background'))
+
+        const css = await generateCSSForThemes(THEMES, entryPath)
+
+        expect(css).toContain(themeVariable('--color-background'))
+    })
+
     // A comment still open at EOF ends with the stylesheet. The theme declarations must not become part of it.
     test.each([
         ['', []],
