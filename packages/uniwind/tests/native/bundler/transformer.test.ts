@@ -161,6 +161,14 @@ describe('transform', () => {
 
         expect(getWorkerCall().data.toString()).toBe(`export { View } from 'react-native'\n`)
     })
+
+    test('leaves the raw-component module as written when no component is enabled', async () => {
+        const data = readFileSync(RAW_COMPONENTS_PATH)
+
+        await transform(createConfig([]), PROJECT_ROOT, path.relative(PROJECT_ROOT, RAW_COMPONENTS_PATH), data, transformOptions)
+
+        expect(getWorkerCall().data).toBe(data)
+    })
 })
 
 describe('Babel transformer', () => {

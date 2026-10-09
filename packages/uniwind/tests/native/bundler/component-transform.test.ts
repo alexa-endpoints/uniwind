@@ -530,6 +530,18 @@ describe('shouldTransformClasslessComponents', () => {
         expect(shouldTransformClasslessComponents(config, source, nativeOptions)).toBe(false)
     })
 
+    // The option is off by default, so a scan there would cost every transform of every app.
+    test.each([
+        ['no resolved list', {}],
+        ['an empty list', { optimizedClasslessComponents: [] }],
+    ])('reads no file for %s', (_, config) => {
+        const data = Buffer.from(source)
+        const includes = jest.spyOn(data, 'includes')
+
+        expect(shouldTransformClasslessComponents(config, data, nativeOptions)).toBe(false)
+        expect(includes).not.toHaveBeenCalled()
+    })
+
     test('skips web, assets and files without React Native', () => {
         const config = { optimizedClasslessComponents: ['View' as const] }
 
