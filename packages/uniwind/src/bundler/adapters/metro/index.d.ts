@@ -53,10 +53,12 @@ export type ClasslessComponentPredicate = (
 
 type ExperimentalOptions = {
     /**
-     * Rewrites statically classless React Native elements to raw components. The deprecated
-     * `SafeAreaView` always keeps its wrapper.
+     * On native, compiles statically classless built-in React Native elements to the raw components,
+     * React Native's own exports. Elements that may receive a class keep their wrapper, web output is
+     * unchanged, and the deprecated `SafeAreaView` always keeps its wrapper.
      *
-     * - `true` optimizes the default set: every component the predicate's `isDefault` holds for.
+     * - `true` optimizes the default set: every component the predicate's `isDefault` holds for. That
+     *   is currently every component in `ClasslessComponentName`.
      * - A function is called synchronously once per component in `ClasslessComponentName` when
      *   `withUniwindConfig` runs and returns whether classless usages of that component compile to
      *   the raw component. It must return a boolean; a throw or any other value (such as a Promise)
@@ -64,8 +66,9 @@ type ExperimentalOptions = {
      * - Adjust the default set through `isDefault`:
      *   `(component, { isDefault }) => isDefault && component !== 'Modal'` is the default set without
      *   `Modal`, and `(component, { isDefault }) => isDefault || component === 'Text'` is the default
-     *   set plus `Text`. To enable a fixed list, declare it as `ClasslessComponentName[]` and use
-     *   `component => list.includes(component)`.
+     *   set plus `Text`, which enables the same components as `true` while `Text` is in the default
+     *   set, as every component currently is. To enable a fixed list, declare it as
+     *   `ClasslessComponentName[]` and use `component => list.includes(component)`.
      * - Any other option value, such as `null`, a string or an array, fails the config.
      *
      * @default false
