@@ -3,7 +3,6 @@ import { isDefined } from '@/common/utils'
 import type { ProcessorBuilder } from './processor'
 import { serialize } from './serialize'
 import type { StyleSheetTemplate } from './types'
-import { toCamelCase } from './utils'
 
 const extractVarsFromString = (value: string) => {
     const varsIndexes = [...value.matchAll(/vars\[/g)].map(m => m.index)
@@ -71,11 +70,31 @@ export const addMetaToStylesTemplate = (Processor: ProcessorBuilder, currentPlat
                     focus,
                     disabled,
                     dataAttributes,
+                    complexity,
+                    importantComplexity,
                     ...rest
                 } = style
 
-                const entries = Object.entries(rest)
-                    .flatMap(([property, value]) => Processor.RN.cssToRN(property, value))
+                const nativeEntries = new Map<string, any>()
+                const nativeImportantProperties = new Set<string>()
+
+                for (const [property, value] of Object.entries(rest)) {
+                    const important = importantProperties?.includes(property) ?? false
+
+                    for (const [nativeProperty, nativeValue] of Processor.RN.cssToRN(property, value)) {
+                        if (!important && nativeImportantProperties.has(nativeProperty)) {
+                            continue
+                        }
+
+                        nativeEntries.set(nativeProperty, nativeValue)
+
+                        if (important) {
+                            nativeImportantProperties.add(nativeProperty)
+                        }
+                    }
+                }
+
+                const entries = Array.from(nativeEntries)
                     .map(([property, value]) => [`"${property}"`, `function(vars) { return ${serialize(value)} }`])
 
                 if (platform) {
@@ -143,21 +162,10 @@ export const addMetaToStylesTemplate = (Processor: ProcessorBuilder, currentPlat
                     active,
                     focus,
                     disabled,
-                    importantProperties: importantProperties
-                        ?.map(property => property.startsWith('--') ? property : toCamelCase(property))
-                        .map(makeSafeForSerialization) ?? [],
+                    importantProperties: Array.from(nativeImportantProperties).map(makeSafeForSerialization),
                     dataAttributes,
-                    complexity: [
-                        minWidth !== 0,
-                        theme !== null,
-                        orientation !== null,
-                        rtl !== null,
-                        platform !== null,
-                        active !== null,
-                        focus !== null,
-                        disabled !== null,
-                        dataAttributes !== null,
-                    ].filter(Boolean).length,
+                    complexity,
+                    importantComplexity,
                 }
             })
 
