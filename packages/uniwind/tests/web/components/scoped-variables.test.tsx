@@ -2,8 +2,15 @@ import { render } from '@testing-library/react'
 import * as React from 'react'
 import { describe, expect, test, vi } from 'vitest'
 import { ScopedVariables } from '../../../src'
-import { getWebVariable } from '../../../src/core/web'
+import { getWebStyles, getWebVariable } from '../../../src/core/web'
 import { useCSSVariable } from '../../../src/hooks/useCSSVariable'
+
+// The hidden element getWebStyles and getWebVariable resolve against, found through the class getWebStyles gives its child.
+const getProbeParent = () => {
+    getWebStyles('scoped-variables-probe', undefined, { scopedTheme: null, rtl: null, variables: null })
+
+    return document.querySelector('.scoped-variables-probe')!.parentElement!
+}
 
 describe('ScopedVariables (web)', () => {
     test('scoped custom property resolves on a child, falls back outside', () => {
@@ -136,14 +143,56 @@ describe('ScopedVariables (web)', () => {
         expect(wrapper.style.getPropertyValue('--gap')).toEqual('8px')
     })
 
-    test('getWebVariable applies number values as px and clears them afterwards', () => {
+    test('getWebVariable applies number values as px and drops them for a read without them', () => {
         expect(
             getWebVariable('--gap', { scopedTheme: null, rtl: null, variables: { '--gap': 8 } }),
         ).toEqual('8px')
 
-        // The dummy parent is cleared after the read, so a plain read falls back
+        // A read without scoped variables removes them from the dummy parent, so it falls back
         expect(
             getWebVariable('--gap', { scopedTheme: null, rtl: null, variables: null }),
         ).toEqual('')
+    })
+
+    test('reads with unchanged scoped variables leave the probe styles untouched', () => {
+        const probeParent = getProbeParent()
+        const context = { scopedTheme: null, rtl: null, variables: { '--color-primary': '#3b82f6', '--gap': 8 } }
+
+        expect(getWebVariable('--gap', context)).toEqual('8px')
+
+        const setProperty = vi.spyOn(probeParent.style, 'setProperty')
+        const removeProperty = vi.spyOn(probeParent.style, 'removeProperty')
+
+        try {
+            expect(getWebVariable('--gap', context)).toEqual('8px')
+            expect(getWebVariable('--color-primary', { ...context, variables: { ...context.variables } })).toEqual('#3b82f6')
+            getWebStyles('scoped-variables-probe', undefined, context)
+
+            expect(setProperty).not.toHaveBeenCalled()
+            expect(removeProperty).not.toHaveBeenCalled()
+        } finally {
+            setProperty.mockRestore()
+            removeProperty.mockRestore()
+        }
+    })
+
+    test('switching scopes removes the previous scope\'s variables and applies changed values', () => {
+        const probeParent = getProbeParent()
+        const outer = { scopedTheme: null, rtl: null, variables: { '--color-primary': '#3b82f6', '--gap': 8 } as Record<string, string | number> }
+        const inner = { scopedTheme: null, rtl: null, variables: { '--color-primary': '#ff0000' } }
+
+        expect(getWebVariable('--gap', outer)).toEqual('8px')
+        expect(getWebVariable('--color-primary', inner)).toEqual('#ff0000')
+        expect(getWebVariable('--gap', inner)).toEqual('')
+        expect(probeParent.style.getPropertyValue('--gap')).toEqual('')
+
+        // A value changed in place on the same variables object is applied too.
+        outer.variables['--gap'] = 12
+
+        expect(getWebVariable('--gap', outer)).toEqual('12px')
+        expect(getWebVariable('--color-primary', outer)).toEqual('#3b82f6')
+
+        expect(getWebVariable('--gap', { scopedTheme: null, rtl: null, variables: null })).toEqual('')
+        expect(probeParent.style.getPropertyValue('--color-primary')).toEqual('')
     })
 })

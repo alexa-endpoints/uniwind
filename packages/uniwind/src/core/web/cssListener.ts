@@ -88,13 +88,19 @@ const parseLeadingClassName = (selectorText: string) => {
     return className ? unescapeCSSIdentifier(className) : null
 }
 
+const MAX_CLASS_NAME_CACHE_SIZE = 500
+
 type StyleSheetContext = {
     connectedSheets: Set<CSSStyleSheet>
     elements: WeakMap<CSSStyleSheet, HTMLLinkElement | HTMLStyleElement>
 }
 
 class CSSListenerBuilder {
-    activeRules = new Set<CSSStyleRule>()
+    // Changed only through addActiveRule and deleteActiveRule, which also drop the cached lookups. Stylesheet
+    // removals apply as soon as the change is observed, ahead of the next scan, and lookups follow them at once.
+    private activeRules = new Set<CSSStyleRule>()
+    // Candidate rules per class string, least recently used first.
+    private classNameRules = new Map<string, ReadonlyArray<CSSStyleRule>>()
     private classNameListeners = new Map<string, Set<VoidFunction>>()
     private classNameRevisions = new Map<string, number>()
     private mediaChangeStyleSheetContext: StyleSheetContext | undefined
@@ -155,6 +161,29 @@ class CSSListenerBuilder {
             attributes: true,
             attributeFilter: ['disabled', 'media', 'title', 'href', 'rel'],
         })
+    }
+
+    // The active rules whose selector names one of the classes. Selector matching and computed values stay live.
+    getRulesForClassName(className: string): ReadonlyArray<CSSStyleRule> {
+        const cached = this.classNameRules.get(className)
+
+        if (cached) {
+            this.classNameRules.delete(className)
+            this.classNameRules.set(className, cached)
+
+            return cached
+        }
+
+        const selectors = className.split(/\s+/).filter(Boolean).map(cls => `.${CSS.escape(cls)}`)
+        const rules = Array.from(this.activeRules).filter(rule => selectors.some(cls => rule.selectorText.includes(cls)))
+
+        if (this.classNameRules.size >= MAX_CLASS_NAME_CACHE_SIZE) {
+            this.classNameRules.delete(this.classNameRules.keys().next().value!)
+        }
+
+        this.classNameRules.set(className, rules)
+
+        return rules
     }
 
     getSnapshot(classNames: string) {
@@ -341,7 +370,7 @@ class CSSListenerBuilder {
 
         for (const rule of this.activeRules) {
             if (rule.parentStyleSheet === sheet) {
-                this.activeRules.delete(rule)
+                this.deleteActiveRule(rule)
                 styleSheetsChanged = true
             }
         }
@@ -376,7 +405,7 @@ class CSSListenerBuilder {
 
         for (const rule of this.activeRules) {
             if (!rule.parentStyleSheet || !activeSheets.has(rule.parentStyleSheet)) {
-                this.activeRules.delete(rule)
+                this.deleteActiveRule(rule)
                 styleSheetsChanged = true
             }
         }
@@ -387,7 +416,7 @@ class CSSListenerBuilder {
             if (!rule.parentStyleSheet || !activeSheets.has(rule.parentStyleSheet)) {
                 registration.mediaQueryList.removeEventListener('change', registration.listener)
                 this.mediaQueryRuleListeners.delete(rule)
-                this.activeRules.delete(rule)
+                this.deleteActiveRule(rule)
                 staleQueries.add(registration.query)
                 styleSheetsChanged = true
             }
@@ -496,7 +525,7 @@ class CSSListenerBuilder {
             if (this.isStyleRule(rule)) {
                 const mediaQueries = this.collectParentMediaQueries(rule)
 
-                this.activeRules.add(rule)
+                this.addActiveRule(rule)
 
                 if (mediaQueries.length > 0) {
                     this.addMediaQuery(mediaQueries, rule, context)
@@ -564,9 +593,22 @@ class CSSListenerBuilder {
 
     private toggleRule(mqList: MediaQueryList, rule: CSSStyleRule, context: StyleSheetContext) {
         if (mqList.matches && this.isRuleLive(rule, context)) {
-            this.activeRules.add(rule)
+            this.addActiveRule(rule)
         } else {
-            this.activeRules.delete(rule)
+            this.deleteActiveRule(rule)
+        }
+    }
+
+    private addActiveRule(rule: CSSStyleRule) {
+        if (!this.activeRules.has(rule)) {
+            this.activeRules.add(rule)
+            this.classNameRules.clear()
+        }
+    }
+
+    private deleteActiveRule(rule: CSSStyleRule) {
+        if (this.activeRules.delete(rule)) {
+            this.classNameRules.clear()
         }
     }
 }
