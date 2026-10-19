@@ -1,4 +1,30 @@
-## What's Changed in 1.12.2
+## What's Changed in 1.13.0
+
+
+
+### 🚀 Features
+* feat: generate native style match predicates by @Brentlok in [#725](https://github.com/uni-stack/uniwind/pull/725)
+* feat: honor CSS cascade order on native by @Brentlok in [#722](https://github.com/uni-stack/uniwind/pull/722)
+
+
+### 🐛 Bug Fixes
+* fix: forward all React Native exports from native components entry by @jpudysz in [#740](https://github.com/uni-stack/uniwind/pull/740)
+* fix: keep test themes out of the published uniwind.css by @dlebedynskyi in [#718](https://github.com/uni-stack/uniwind/pull/718)
+* fix: remove font variant empty values by @Brentlok in [#729](https://github.com/uni-stack/uniwind/pull/729)
+* fix(metro): track imported CSS dependencies for hot reload by @fendyk in [#676](https://github.com/uni-stack/uniwind/pull/676)
+
+
+### 🔨 Refactoring
+* refactor: separate style metadata from declarations by @Brentlok in [#723](https://github.com/uni-stack/uniwind/pull/723)
+
+
+### 📦 Other
+* ci: improve ci release by @Brentlok in [#715](https://github.com/uni-stack/uniwind/pull/715)
+
+
+### New Contributors
+* @fendyk made their first contribution in [#676](https://github.com/uni-stack/uniwind/pull/676)
+**Full Changelog**: https://github.com/uni-stack/uniwind/compare/v1.12.2...v1.13.0## What's Changed in 1.12.2
 
 
 
