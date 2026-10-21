@@ -3,6 +3,42 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 import { Uniwind, useCSSVariable } from '../../../src'
 import { CSSListener } from '../../../src/core/web'
 
+// Whether the active rules CSSListener finds for a class string include the given selector.
+const hasRule = (className: string, selector = `.${CSS.escape(className)}`) =>
+    CSSListener.getRulesForClassName(className).some(rule => rule.selectorText === selector)
+
+const mockMatchMedia = (media: string) => {
+    const originalMatchMedia = window.matchMedia
+    const mediaListeners = new Set<EventListener>()
+    const mediaQueryList = {
+        addEventListener: (_: string, listener: EventListener) => mediaListeners.add(listener),
+        dispatchEvent: () => true,
+        matches: false,
+        media,
+        onchange: null,
+        removeEventListener: (_: string, listener: EventListener) => mediaListeners.delete(listener),
+    }
+
+    Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: vi.fn(() => mediaQueryList),
+    })
+
+    return {
+        mediaListeners,
+        setMatches: (matches: boolean) => {
+            mediaQueryList.matches = matches
+            mediaListeners.forEach(mediaListener => mediaListener(new Event('change')))
+        },
+        restore: () => {
+            Object.defineProperty(window, 'matchMedia', {
+                configurable: true,
+                value: originalMatchMedia,
+            })
+        },
+    }
+}
+
 afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
@@ -51,7 +87,7 @@ test('notifies class subscribers after discovering a stylesheet injected later',
     style.textContent = '.accent-late { accent-color: rgb(255, 0, 0); }'
 
     const listener = vi.fn(() => {
-        const rule = Array.from(CSSListener.activeRules).find(rule => rule.selectorText === '.accent-late')
+        const rule = CSSListener.getRulesForClassName('accent-late').find(rule => rule.selectorText === '.accent-late')
         return rule?.style.getPropertyValue('accent-color')
     })
     const dispose = CSSListener.subscribeToClassName('accent-late', listener)
@@ -92,7 +128,7 @@ describe('CSSListener', () => {
             document.head.appendChild(style)
 
             await waitFor(() => {
-                expect(Array.from(CSSListener.activeRules).some(rule => rule.selectorText === '.remote-class')).toBe(true)
+                expect(hasRule('remote-class')).toBe(true)
                 expect(listener).toHaveBeenCalled()
             })
 
@@ -100,7 +136,7 @@ describe('CSSListener', () => {
             style.remove()
 
             await waitFor(() => {
-                expect(Array.from(CSSListener.activeRules).some(rule => rule.selectorText === '.remote-class')).toBe(false)
+                expect(hasRule('remote-class')).toBe(false)
                 expect(listener).toHaveBeenCalled()
             })
 
@@ -108,7 +144,7 @@ describe('CSSListener', () => {
             document.head.appendChild(style)
 
             await waitFor(() => {
-                expect(Array.from(CSSListener.activeRules).some(rule => rule.selectorText === '.remote-class')).toBe(true)
+                expect(hasRule('remote-class')).toBe(true)
                 expect(listener).toHaveBeenCalled()
             })
         } finally {
@@ -127,14 +163,14 @@ describe('CSSListener', () => {
             document.head.appendChild(style)
 
             await waitFor(() => {
-                expect(Array.from(CSSListener.activeRules).some(rule => rule.selectorText === '.disabled-class')).toBe(true)
+                expect(hasRule('disabled-class')).toBe(true)
             })
 
             listener.mockClear()
             style.setAttribute('disabled', '')
 
             await waitFor(() => {
-                expect(Array.from(CSSListener.activeRules).some(rule => rule.selectorText === '.disabled-class')).toBe(false)
+                expect(hasRule('disabled-class')).toBe(false)
                 expect(listener).toHaveBeenCalled()
             })
 
@@ -142,12 +178,96 @@ describe('CSSListener', () => {
             style.removeAttribute('disabled')
 
             await waitFor(() => {
-                expect(Array.from(CSSListener.activeRules).some(rule => rule.selectorText === '.disabled-class')).toBe(true)
+                expect(hasRule('disabled-class')).toBe(true)
                 expect(listener).toHaveBeenCalled()
             })
         } finally {
             dispose()
             style.remove()
+        }
+    })
+
+    test('drops a disabled stylesheet from cached class lookups before the next scan', async () => {
+        vi.useFakeTimers()
+        vi.stubGlobal('requestIdleCallback', undefined)
+
+        const style = document.createElement('style')
+        style.textContent = '.cached-class { background-color: red; }'
+
+        try {
+            document.head.appendChild(style)
+            await Promise.resolve()
+            await vi.advanceTimersByTimeAsync(50)
+
+            expect(CSSListener.getRulesForClassName('cached-class').map(rule => rule.selectorText)).toEqual(['.cached-class'])
+
+            // The observer drops the sheet's rules at once and schedules a scan; the lookup must not wait for it.
+            style.setAttribute('disabled', '')
+            await Promise.resolve()
+
+            expect(vi.getTimerCount()).toBeGreaterThan(0)
+            expect(CSSListener.getRulesForClassName('cached-class')).toEqual([])
+        } finally {
+            style.remove()
+            await Promise.resolve()
+            await vi.advanceTimersByTimeAsync(50)
+        }
+    })
+
+    test('drops a stylesheet whose media stops matching from cached class lookups before the next scan', async () => {
+        const media = mockMatchMedia('(min-width: 920px)')
+        const style = document.createElement('style')
+
+        try {
+            media.setMatches(true)
+            style.media = '(min-width: 920px)'
+            style.textContent = '.cached-sheet-media-class { background-color: red; }'
+            document.head.appendChild(style)
+
+            await waitFor(() => expect(hasRule('cached-sheet-media-class')).toBe(true))
+
+            vi.useFakeTimers()
+            vi.stubGlobal('requestIdleCallback', undefined)
+            media.setMatches(false)
+
+            expect(vi.getTimerCount()).toBeGreaterThan(0)
+            expect(CSSListener.getRulesForClassName('cached-sheet-media-class')).toEqual([])
+        } finally {
+            if (vi.isFakeTimers()) {
+                // Lets the scheduled scan run before the timers it was scheduled on go away.
+                await vi.advanceTimersByTimeAsync(50)
+            }
+
+            vi.useRealTimers()
+            vi.unstubAllGlobals()
+            style.remove()
+
+            await waitFor(() => expect(media.mediaListeners.size).toBe(0))
+            media.restore()
+        }
+    })
+
+    test('refreshes cached class lookups when a media query toggles a rule', async () => {
+        const media = mockMatchMedia('(min-width: 650px)')
+        const style = document.createElement('style')
+
+        try {
+            style.textContent = '@media (min-width: 650px) { .cached-media-class { background-color: blue; } }'
+            document.head.appendChild(style)
+
+            await waitFor(() => expect(media.mediaListeners.size).toBe(1))
+            expect(CSSListener.getRulesForClassName('cached-media-class')).toEqual([])
+
+            media.setMatches(true)
+            expect(CSSListener.getRulesForClassName('cached-media-class').map(rule => rule.selectorText)).toEqual(['.cached-media-class'])
+
+            media.setMatches(false)
+            expect(CSSListener.getRulesForClassName('cached-media-class')).toEqual([])
+        } finally {
+            style.remove()
+
+            await waitFor(() => expect(media.mediaListeners.size).toBe(0))
+            media.restore()
         }
     })
 
@@ -180,7 +300,7 @@ describe('CSSListener', () => {
             await waitFor(() => {
                 expect(window.matchMedia).toHaveBeenCalledWith('(min-width: 900px)')
                 expect(mediaListeners.size).toBe(1)
-                expect(Array.from(CSSListener.activeRules).some(rule => rule.selectorText === '.sheet-media-class')).toBe(false)
+                expect(hasRule('sheet-media-class')).toBe(false)
             })
 
             listener.mockClear()
@@ -188,7 +308,7 @@ describe('CSSListener', () => {
             mediaListeners.forEach(mediaListener => mediaListener(new Event('change')))
 
             await waitFor(() => {
-                expect(Array.from(CSSListener.activeRules).some(rule => rule.selectorText === '.sheet-media-class')).toBe(true)
+                expect(hasRule('sheet-media-class')).toBe(true)
                 expect(listener).toHaveBeenCalled()
             })
 
@@ -197,7 +317,7 @@ describe('CSSListener', () => {
             mediaListeners.forEach(mediaListener => mediaListener(new Event('change')))
 
             await waitFor(() => {
-                expect(Array.from(CSSListener.activeRules).some(rule => rule.selectorText === '.sheet-media-class')).toBe(false)
+                expect(hasRule('sheet-media-class')).toBe(false)
                 expect(listener).toHaveBeenCalled()
             })
         } finally {
@@ -257,7 +377,10 @@ describe('CSSListener', () => {
             mediaListeners.forEach(mediaListener => mediaListener(new Event('change')))
 
             expect(styleSheetQueryCount()).toBe(1)
-            expect(Array.from(CSSListener.activeRules).filter(rule => rule.selectorText.startsWith('.batch-class-'))).toHaveLength(2)
+            expect(CSSListener.getRulesForClassName('batch-class-a batch-class-b').map(rule => rule.selectorText)).toEqual([
+                '.batch-class-a',
+                '.batch-class-b',
+            ])
         } finally {
             style.remove()
 
@@ -305,7 +428,7 @@ describe('CSSListener', () => {
             mediaQueryList.matches = true
             mediaListeners.forEach(mediaListener => mediaListener(new Event('change')))
 
-            expect(Array.from(CSSListener.activeRules).some(rule => rule.selectorText === '.rma\\:md\\:bg-blue-500')).toBe(true)
+            expect(hasRule('rma:md:bg-blue-500')).toBe(true)
             expect(listener).toHaveBeenCalled()
             expect(CSSListener.getSnapshot('rma:md:bg-blue-500')).not.toBe(snapshot)
         } finally {
@@ -356,7 +479,7 @@ describe('CSSListener', () => {
             mediaQueryList.matches = true
             mediaListeners.forEach(mediaListener => mediaListener(new Event('change')))
 
-            expect(Array.from(CSSListener.activeRules).some(rule => rule.selectorText === selector)).toBe(true)
+            expect(hasRule(className, selector)).toBe(true)
             expect(listener).toHaveBeenCalledTimes(1)
         } finally {
             dispose()

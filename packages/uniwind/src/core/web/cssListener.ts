@@ -96,8 +96,11 @@ type StyleSheetContext = {
 }
 
 class CSSListenerBuilder {
-    activeRules = new Set<CSSStyleRule>()
-    private classNameRules = new Map<string, Array<CSSStyleRule>>()
+    // Changed only through addActiveRule and deleteActiveRule, which also drop the cached lookups. Stylesheet
+    // removals apply as soon as the change is observed, ahead of the next scan, and lookups follow them at once.
+    private activeRules = new Set<CSSStyleRule>()
+    // Candidate rules per class string, least recently used first.
+    private classNameRules = new Map<string, ReadonlyArray<CSSStyleRule>>()
     private classNameListeners = new Map<string, Set<VoidFunction>>()
     private classNameRevisions = new Map<string, number>()
     private mediaChangeStyleSheetContext: StyleSheetContext | undefined
@@ -160,7 +163,8 @@ class CSSListenerBuilder {
         })
     }
 
-    getRulesForClassName(className: string) {
+    // The active rules whose selector names one of the classes. Selector matching and computed values stay live.
+    getRulesForClassName(className: string): ReadonlyArray<CSSStyleRule> {
         const cached = this.classNameRules.get(className)
 
         if (cached) {
@@ -366,7 +370,7 @@ class CSSListenerBuilder {
 
         for (const rule of this.activeRules) {
             if (rule.parentStyleSheet === sheet) {
-                this.activeRules.delete(rule)
+                this.deleteActiveRule(rule)
                 styleSheetsChanged = true
             }
         }
@@ -401,7 +405,7 @@ class CSSListenerBuilder {
 
         for (const rule of this.activeRules) {
             if (!rule.parentStyleSheet || !activeSheets.has(rule.parentStyleSheet)) {
-                this.activeRules.delete(rule)
+                this.deleteActiveRule(rule)
                 styleSheetsChanged = true
             }
         }
@@ -412,7 +416,7 @@ class CSSListenerBuilder {
             if (!rule.parentStyleSheet || !activeSheets.has(rule.parentStyleSheet)) {
                 registration.mediaQueryList.removeEventListener('change', registration.listener)
                 this.mediaQueryRuleListeners.delete(rule)
-                this.activeRules.delete(rule)
+                this.deleteActiveRule(rule)
                 staleQueries.add(registration.query)
                 styleSheetsChanged = true
             }
@@ -431,7 +435,6 @@ class CSSListenerBuilder {
     }
 
     private initialize() {
-        this.classNameRules.clear()
         this.pendingInitialization = undefined
 
         if (typeof document === 'undefined') {
@@ -522,7 +525,7 @@ class CSSListenerBuilder {
             if (this.isStyleRule(rule)) {
                 const mediaQueries = this.collectParentMediaQueries(rule)
 
-                this.activeRules.add(rule)
+                this.addActiveRule(rule)
 
                 if (mediaQueries.length > 0) {
                     this.addMediaQuery(mediaQueries, rule, context)
@@ -589,11 +592,23 @@ class CSSListenerBuilder {
     }
 
     private toggleRule(mqList: MediaQueryList, rule: CSSStyleRule, context: StyleSheetContext) {
-        this.classNameRules.clear()
         if (mqList.matches && this.isRuleLive(rule, context)) {
-            this.activeRules.add(rule)
+            this.addActiveRule(rule)
         } else {
-            this.activeRules.delete(rule)
+            this.deleteActiveRule(rule)
+        }
+    }
+
+    private addActiveRule(rule: CSSStyleRule) {
+        if (!this.activeRules.has(rule)) {
+            this.activeRules.add(rule)
+            this.classNameRules.clear()
+        }
+    }
+
+    private deleteActiveRule(rule: CSSStyleRule) {
+        if (this.activeRules.delete(rule)) {
+            this.classNameRules.clear()
         }
     }
 }
