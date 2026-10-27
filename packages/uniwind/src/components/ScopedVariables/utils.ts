@@ -30,8 +30,9 @@ export const buildScopedVariablesContext = (
         ...validateVariables(variables),
     } as UniwindContextCSSVariables
     delete mergedVariables.__uniwindVariablesCacheKey
+    // The key only needs a stable order. Code-unit order avoids localeCompare, which creates a collator per call on Android
     const variablesCacheKey = JSON.stringify(
-        Object.entries(mergedVariables).sort(([a], [b]) => a.localeCompare(b)),
+        Object.entries(mergedVariables).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0),
     )
     mergedVariables.__uniwindVariablesCacheKey = variablesCacheKey
 
