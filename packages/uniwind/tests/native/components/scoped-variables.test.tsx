@@ -311,6 +311,38 @@ describe('ScopedVariables', () => {
             expect(ambiguous.mock.calls[0][0]).not.toEqual(plain.mock.calls[0][0])
         })
 
+        test('cache key ignores variable order without locale collation', () => {
+            const localeCompare = jest.spyOn(String.prototype, 'localeCompare')
+            const Probe = (props: { test: jest.Mock }) => {
+                props.test(useUniwindContext().variables?.__uniwindVariablesCacheKey)
+
+                return null
+            }
+
+            const first = jest.fn()
+            const second = jest.fn()
+
+            try {
+                renderUniwind(
+                    <React.Fragment>
+                        <ScopedVariables variables={{ '--gap': 8, '--color-primary': '#ff0000' }}>
+                            <Probe test={first} />
+                        </ScopedVariables>
+                        <ScopedVariables variables={{ '--color-primary': '#ff0000', '--gap': 8 }}>
+                            <Probe test={second} />
+                        </ScopedVariables>
+                    </React.Fragment>,
+                )
+
+                expect(first).toHaveBeenCalledWith('[["--color-primary","#ff0000"],["--gap",8]]')
+                expect(second).toHaveBeenCalledWith('[["--color-primary","#ff0000"],["--gap",8]]')
+                // Hermes on Android creates a collator for every localeCompare call
+                expect(localeCompare).not.toHaveBeenCalled()
+            } finally {
+                localeCompare.mockRestore()
+            }
+        })
+
         test('updating the variables prop does not serve stale cached styles', () => {
             const Wrapper = ({ color }: { color: string }) => (
                 <ScopedVariables variables={{ '--color-primary': color }}>
