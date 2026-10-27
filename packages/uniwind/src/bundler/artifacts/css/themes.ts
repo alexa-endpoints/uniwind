@@ -49,6 +49,11 @@ const THEME_VARIABLE_ERRORS = [
 
 const isThemeVariableError = (error: unknown) => error instanceof Error && THEME_VARIABLE_ERRORS.some(pattern => pattern.test(error.message))
 
+// Tailwind checks that the entry's `source()` directory exists only after it has resolved every stylesheet and module.
+// The directory matters to the build's candidate scan, not to discovery, which has seen every stylesheet by then.
+const isMissingSourceError = (error: unknown) =>
+    error instanceof Error && /^The `source\(.*\)` does not exist or is not a directory\.$/.test(error.message)
+
 const reportMissingThemesVariables = (themesVariables: ThemesVariables) => {
     let hasErrors = false as boolean
 
@@ -199,7 +204,11 @@ export const generateCSSForThemes = async (themes: Array<string>, input: string)
                         }
                     },
                 },
-            )
+            ).catch((error: unknown) => {
+                if (!isMissingSourceError(error)) {
+                    throw error
+                }
+            })
         }
 
         await discoverCSSPaths().catch(async (error: unknown) => {
