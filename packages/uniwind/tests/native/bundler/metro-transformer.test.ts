@@ -1,3 +1,4 @@
+import fs from 'fs'
 import type { JsTransformerConfig, JsTransformOptions } from 'metro-transform-worker'
 import { join, sep } from 'node:path'
 import { transform } from '../../../src/bundler/adapters/metro/transformer'
@@ -49,6 +50,8 @@ const remote = { federation: { role: 'remote' as const, id: 'remoteA' } }
 
 beforeEach(() => {
     jest.spyOn(process, 'cwd').mockReturnValue(projectRoot)
+    // The reported stylesheets are virtual paths, so each is its own real path.
+    jest.spyOn(fs, 'realpathSync').mockImplementation((path => path) as typeof fs.realpathSync)
     jest.spyOn(UniwindBundlerConfig.prototype, 'generateArtifacts').mockImplementation(path => {
         artifactPath = path
 
