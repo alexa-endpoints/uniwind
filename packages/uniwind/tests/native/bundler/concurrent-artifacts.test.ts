@@ -67,9 +67,9 @@ describe('concurrent project artifacts', () => {
 
             outputs.forEach((code, index) => {
                 if (index % 2 === 0) {
-                    expect(code).toContain('"className": "ocean:bg-red-500"')
+                    expect(code).toContain('"ocean:bg-red-500": [{')
                 } else {
-                    expect(code).toContain('"className": "bg-blue-500"')
+                    expect(code).toContain('"bg-blue-500": [{')
                 }
             })
             expect(artifactPathOf(oceanCSSPath, ['ocean'])).not.toBe(artifactPathOf(plainCSSPath, []))
@@ -109,7 +109,7 @@ describe('concurrent project artifacts', () => {
                     ? ['ocean', '#0000ff', 'forest']
                     : ['forest', '#00ff00', 'ocean']
 
-                expect(code).toContain('"className": "bg-surface"')
+                expect(code).toContain('"bg-surface": [{')
                 expect(code).toContain(`"__uniwind-theme-${theme}": ({ "--color-surface": vars => "${color}", })`)
                 expect(code).not.toContain(otherTheme)
             })

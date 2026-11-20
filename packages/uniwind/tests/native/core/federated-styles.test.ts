@@ -14,9 +14,9 @@ const context = {
 
 type StyleOptions = Partial<Pick<Style, 'complexity' | 'importantComplexity' | 'importantProperties' | 'matches'>>
 
-const createStyle = (className: string, value: string | ((vars: Vars) => string), options: StyleOptions = {}): Style => ({
-    className,
+const createStyle = (value: string | ((vars: Vars) => string), options: StyleOptions = {}): Style => ({
     complexity: 0,
+    dataAttributeNames: null,
     dependencies: null,
     entries: [
         [
@@ -24,10 +24,8 @@ const createStyle = (className: string, value: string | ((vars: Vars) => string)
             typeof value === 'string' ? () => value : value,
         ],
     ],
-    hasDataAttributes: false,
     importantComplexity: 0,
     importantProperties: [],
-    index: 0,
     matches: () => true,
     ...options,
 })
@@ -41,7 +39,7 @@ const createRegistration = (
     stylesheet: Object.fromEntries(
         Object.entries(styles).map(([className, value]) => [
             className,
-            [createStyle(className, value)],
+            [createStyle(value)],
         ]),
     ),
     vars: Object.fromEntries(
@@ -230,8 +228,8 @@ describe('federated native styles', () => {
             cascade: hostCascade,
             scopedVars: {},
             stylesheet: {
-                'host-color': [createStyle('host-color', '#16a34a', { complexity: 6, importantComplexity: 8 })],
-                'host-pressed': [createStyle('host-pressed', '#dc2626', { complexity: 7, importantComplexity: 9, matches: pressed })],
+                'host-color': [createStyle('#16a34a', { complexity: 6, importantComplexity: 8 })],
+                'host-pressed': [createStyle('#dc2626', { complexity: 7, importantComplexity: 9, matches: pressed })],
             },
             vars: {},
         }), ['light', 'dark'])
@@ -241,15 +239,15 @@ describe('federated native styles', () => {
                 cascade: remoteCascade,
                 scopedVars: {},
                 stylesheet: {
-                    'rma:color': [createStyle('rma:color', '#2563eb', { complexity: 0, importantComplexity: 4 })],
+                    'rma:color': [createStyle('#2563eb', { complexity: 0, importantComplexity: 4 })],
                     'rma:important': [
-                        createStyle('rma:important', '#9333ea', {
+                        createStyle('#9333ea', {
                             complexity: 1,
                             importantComplexity: 5,
                             importantProperties: ['backgroundColor'],
                         }),
                     ],
-                    'rma:component': [createStyle('rma:component', '#facc15', { complexity: 2, importantComplexity: 3 })],
+                    'rma:component': [createStyle('#facc15', { complexity: 2, importantComplexity: 3 })],
                 },
                 vars: {},
             }),

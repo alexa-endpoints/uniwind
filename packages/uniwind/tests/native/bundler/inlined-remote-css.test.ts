@@ -113,10 +113,10 @@ describe('inlined remote CSS', () => {
             const remoteWebCode = remoteWeb.output[0]?.data.code
 
             expect(hostCode).toContain('Uniwind.__reinit(')
-            expect(hostCode).toContain('"className": "bg-red-500"')
+            expect(hostCode).toContain('"bg-red-500": [{')
             expect(remoteCode).toContain('Uniwind.__mergeStyles("remote-a"')
-            expect(remoteCode).toContain('"className": "rmt:bg-blue-500"')
-            expect(remoteCode).not.toContain('"className": "bg-red-500"')
+            expect(remoteCode).toContain('"rmt:bg-blue-500": [{')
+            expect(remoteCode).not.toContain('"bg-red-500": [{')
             expect(remoteWebCode).toContain('.rmt\\:bg-blue-500')
             expect(remoteWebCode).not.toContain('Uniwind.__mergeStyles')
             expect(artifactCSSPaths).toEqual([hostCSSPath, hostCSSPath, hostCSSPath])

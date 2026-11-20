@@ -163,7 +163,7 @@ describe('imported stylesheets', () => {
         const code = await transformEntry({ cssEntryFile: path.relative(process.cwd(), cssPath) })
 
         // The entry compiled against the project's artifact, which Tailwind reported as an import.
-        expect(code).toContain('"className": "bg-artifact"')
+        expect(code).toContain('"bg-artifact": [{')
         expect(stylesheetRequires(code)).toEqual(['./theme/colors.css', './theme/tokens.css'])
     })
 
